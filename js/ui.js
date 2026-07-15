@@ -36,12 +36,25 @@ const UI = {
 
   // ---------- 初期化 ----------
   init() {
-    document.getElementById('start-btn').addEventListener('click', () => {
-      Game.newGame();
+    const openGame = () => {
       document.getElementById('title-screen').classList.add('hidden');
       document.getElementById('game-screen').classList.remove('hidden');
       this.render();
-      Game.play(1);
+      if (!Game.state.gameOver) Game.play(1);
+    };
+
+    const continueBtn = document.getElementById('continue-btn');
+    continueBtn.classList.toggle('hidden', !Game.hasSave());
+    document.getElementById('start-btn').addEventListener('click', () => {
+      Game.newGame();
+      openGame();
+    });
+    continueBtn.addEventListener('click', () => {
+      if (Game.loadGame()) openGame();
+      else {
+        continueBtn.classList.add('hidden');
+        document.getElementById('save-note').textContent = 'セーブデータを読み込めませんでした。新しくゲームを開始してください。';
+      }
     });
     document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => this.switchTab(b.dataset.tab)));
     document.getElementById('btn-pause').addEventListener('click', () => Game.pause());
@@ -61,6 +74,7 @@ const UI = {
   render(fromTick = false) {
     const s = Game.state;
     if (!s) return;
+    Game.saveGame();
     const r = Game.computeReport();
     this.renderKPI(s, r);
     this.renderLog(s);
