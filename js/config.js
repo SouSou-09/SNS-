@@ -1,0 +1,145 @@
+// ============================================================
+// SNS経営シミュレーター 設定・バランスデータ
+// ============================================================
+const CONFIG = {
+  // --- 初期状態 ---
+  START_CASH: 50000000,        // 初期資金 ¥5,000万
+  START_USERS: 50000,          // 初期登録ユーザー
+  START_BOTS: 2000,            // 初期BOT数
+  BANKRUPT_LINE: -10000000,    // 倒産ライン(負債¥1,000万)
+
+  // --- ユーザー行動モデル ---
+  DAU_RATIO: 0.45,             // 登録ユーザーのうち日次アクティブ率
+  ACTIONS_PER_DAU: 250,        // 1DAUあたりのリクエスト数/日
+  PEAK_FACTOR: 2.5,            // ピーク時倍率(夜間帯)
+  DB_QUERY_PER_REQ: 4,         // 1リクエストあたりDBクエリ数
+  CACHEABLE_RATIO: 0.7,        // キャッシュ可能クエリ割合
+  MB_PER_REQ: 0.8,             // 1リクエストあたり転送量(MB)
+  POSTS_PER_DAU: 6,            // 1DAUあたり投稿+コメント数/日
+  FEED_VIEWS_PER_DAU: 300,     // 1DAUあたりフィード閲覧アイテム数/日
+  STORAGE_MB_PER_DAU: 3,       // 1DAUあたり新規データ量(MB/日)
+  BOT_LOAD_FACTOR: 0.6,        // BOT 1体のサーバー負荷(人間比)
+
+  // --- サーバーカタログ ---
+  SERVERS: {
+    web_s: { cat:'web', name:'Web APサーバー(小)', spec:'8vCPU / 32GB RAM', cap:400, capUnit:'req/s',
+             price:400000, upkeep:3000, delivery:1, icon:'fa-server' },
+    web_m: { cat:'web', name:'Web APサーバー(中)', spec:'32vCPU / 128GB RAM', cap:1800, capUnit:'req/s',
+             price:1500000, upkeep:10000, delivery:2, icon:'fa-server' },
+    web_l: { cat:'web', name:'Web APサーバー(大)', spec:'96vCPU / 512GB RAM', cap:6000, capUnit:'req/s',
+             price:4800000, upkeep:28000, delivery:3, icon:'fa-server' },
+    db_s:  { cat:'db', name:'DBサーバー(小)', spec:'NVMe 4TB / 64GB RAM', cap:3000, capUnit:'query/s',
+             price:800000, upkeep:5000, delivery:2, icon:'fa-database' },
+    db_m:  { cat:'db', name:'DBサーバー(中)', spec:'NVMe 16TB / 256GB RAM', cap:12000, capUnit:'query/s',
+             price:2800000, upkeep:15000, delivery:3, icon:'fa-database' },
+    db_l:  { cat:'db', name:'DBサーバー(大)', spec:'NVMe 64TB / 1TB RAM', cap:40000, capUnit:'query/s',
+             price:9000000, upkeep:40000, delivery:4, icon:'fa-database' },
+    cache: { cat:'cache', name:'キャッシュサーバー', spec:'Redis 512GB RAM', cap:8000, capUnit:'query/s',
+             price:600000, upkeep:4000, delivery:1, icon:'fa-bolt' },
+    gpu:   { cat:'gpu', name:'GPUサーバー', spec:'A100 x8 / 640GB VRAM', cap:8, capUnit:'GPUユニット',
+             price:6000000, upkeep:20000, delivery:5, icon:'fa-microchip' },
+    storage:{ cat:'storage', name:'ストレージノード', spec:'HDD 200TB RAID6', cap:200, capUnit:'TB',
+             price:1200000, upkeep:6000, delivery:2, icon:'fa-hard-drive' },
+  },
+
+  // --- CDN(契約制・即時反映) ---
+  CDN_UNIT_GBPS: 10,           // 1契約あたり帯域
+  CDN_UNIT_COST: 18000,        // ¥/日/契約
+
+  // --- クラウドオートスケール(従量課金・割高) ---
+  AUTOSCALE: {
+    webCostPerReq: 45,         // 不足req/sあたり¥/日
+    dbCostPerQuery: 12,        // 不足query/sあたり¥/日
+    bwCostPerGbps: 35000,      // 不足Gbpsあたり¥/日
+  },
+
+  // --- 人材(日給) ---
+  STAFF: {
+    engineer: { name:'インフラエンジニア', cost:30000, max:20, desc:'チューニングで総容量+2%/人。障害復旧を高速化' },
+    mod:      { name:'人間モデレーター', cost:16000, max:100, desc:'1人あたり500件/日を精度95%で審査' },
+    pr:       { name:'広報(PR)スタッフ', cost:25000, max:8, desc:'炎上対応の成功率+4%/人' },
+    adSales:  { name:'広告営業', cost:28000, max:15, desc:'eCPM+3%/人(逓減あり)' },
+    reportTeam:{ name:'通報対応チーム', cost:15000, max:30, desc:'1人あたりBOT 400体/日をBAN' },
+  },
+
+  // --- AIモデレーション ---
+  MOD_CAP_PER_HUMAN: 500,      // 人間モデレーター処理能力(件/日)
+  AI_TIERS: [
+    { name:'なし', detect:0, fp:0, gpuPer:0, license:0,
+      desc:'モデレーションを行わない。有害投稿が野放しに' },
+    { name:'キーワードフィルタ', detect:0.40, fp:0.08, gpuPer:0, license:8000,
+      desc:'NGワード辞書ベース。検出率40% / 誤検出8%' },
+    { name:'ML分類器 v1', detect:0.65, fp:0.05, gpuPer:3000000, license:40000,
+      desc:'テキスト分類モデル。検出率65% / 誤検出5% / GPU 1ユニットあたり300万件/日' },
+    { name:'マルチモーダルAI', detect:0.80, fp:0.03, gpuPer:1500000, license:120000,
+      desc:'画像・動画も解析。検出率80% / 誤検出3% / GPU 1ユニットあたり150万件/日' },
+    { name:'LLMモデレーター', detect:0.92, fp:0.015, gpuPer:600000, license:350000,
+      desc:'文脈理解型LLM。検出率92% / 誤検出1.5% / GPU 1ユニットあたり60万件/日' },
+  ],
+  TOXIC_BASE_RATE: 0.020,      // 投稿のうち有害な割合(基礎)
+
+  // --- BOT対策 ---
+  BOT_AI_TIERS: [
+    { name:'なし', banRate:0, gpuPer:0, license:0, desc:'既存BOTを放置' },
+    { name:'ルールベース検知', banRate:0.03, gpuPer:0, license:10000, desc:'既存BOTの3%/日をBAN' },
+    { name:'行動分析ML', banRate:0.09, gpuPer:800000, license:60000, desc:'既存BOTの9%/日をBAN / GPU 1ユニットあたりBOT 80万体' },
+    { name:'グラフニューラル検知', banRate:0.20, gpuPer:400000, license:180000, desc:'既存BOTの20%/日をBAN / GPU 1ユニットあたりBOT 40万体' },
+  ],
+  CAPTCHA: { block:0.55, convPenalty:0.05, cost:5000, name:'CAPTCHA認証' },
+  SMS:     { block:0.80, convPenalty:0.12, cost:20000, name:'SMS本人確認' },
+  REPORT_BAN_PER_STAFF: 400,   // 通報チーム1人あたりBAN数/日
+
+  // --- 広告 ---
+  AD_LOAD_MAX: 30,             // 広告表示率上限(%)
+  BASE_ECPM: 600,              // 基礎eCPM(¥/1000imp)
+  PROMO_CPA_BASE: 300,         // マーケ獲得単価(¥/人)基礎
+  PREMIUM_PRICE: 480,          // プレミアム月額(¥) → 日割り
+  OFFICE_BASE_COST: 80000,     // 固定費(オフィス等)/日
+
+  // --- 満足度・成長 ---
+  BASE_LATENCY: 80,            // 基礎レイテンシ(ms)
+  VIRAL_COEF: 0.030,           // バイラル係数
+  BASE_CHURN: 0.005,           // 基礎解約率/日
+
+  // --- 炎上インシデント ---
+  INCIDENT_TYPES: [
+    { id:'hate',    name:'差別的投稿の拡散放置', cause:'tox', icon:'fa-fire',
+      desc:'ヘイト投稿がトレンド入り。「運営は放置している」と批判殺到。' },
+    { id:'wrongban',name:'有名人アカウント誤BAN騒動', cause:'fban', icon:'fa-user-slash',
+      desc:'AIの誤検出で著名人が凍結され、フォロワーが猛抗議。' },
+    { id:'outage',  name:'大規模障害への批判', cause:'outage', icon:'fa-plug-circle-xmark',
+      desc:'長時間の接続障害にユーザーの怒りが爆発。他SNSでトレンド入り。' },
+    { id:'adscam',  name:'悪質広告の掲載発覚', cause:'ad', icon:'fa-rectangle-ad',
+      desc:'詐欺まがいの広告が大量掲載されていると告発記事が公開された。' },
+    { id:'botspam', name:'スパムBOT大量発生', cause:'bot', icon:'fa-robot',
+      desc:'リプ欄がBOTだらけだとスクショが拡散。「もう終わりだ」の声。' },
+    { id:'leak',    name:'情報流出疑惑', cause:'random', icon:'fa-shield-halved',
+      desc:'ユーザーデータが闇市場で売られているとの疑惑が浮上。' },
+    { id:'policy',  name:'規約変更への反発', cause:'random', icon:'fa-file-contract',
+      desc:'利用規約の文言が「ユーザー軽視だ」と解釈され署名運動に発展。' },
+  ],
+  RESPONSES: [
+    { id:'apology', name:'公式謝罪文を公開', cost:0, base:0.42, heatDown:30, failHeat:10,
+      trustOk:2, trustNg:-3, desc:'無料。成功率は広報力と企業信頼度に依存' },
+    { id:'presser', name:'記者会見+補償対応', costBase:2000000, costPerSev:1000000, base:0.75, heatDown:60, failHeat:8,
+      trustOk:5, trustNg:-2, desc:'高額だが最も確実。重大度に応じて費用増' },
+    { id:'silence', name:'沈黙を保つ', cost:0, base:0.28, smallBonus:0.35, heatDown:18, failHeat:16,
+      trustOk:0, trustNg:-4, desc:'小規模な炎上なら自然鎮火も。失敗すると延焼' },
+    { id:'influencer', name:'インフルエンサー火消し', cost:1500000, base:0.5, heatDown:28, failHeat:22,
+      trustOk:1, trustNg:-6, desc:'成功すれば早いが、ステマ発覚で大延焼のリスク' },
+    { id:'transparency', name:'透明性レポート公開', cost:500000, base:0.55, heatDown:22, failHeat:6,
+      trustOk:4, trustNg:-1, desc:'データで反論。失敗しても傷は浅く信頼が積み上がる' },
+  ],
+
+  // --- マイルストーン ---
+  MILESTONES: [
+    { users:100000,   title:'10万ユーザー達成!', bonus:3000000, msg:'ベンチャーキャピタルから追加出資 +¥300万' },
+    { users:500000,   title:'50万ユーザー達成!', bonus:10000000, msg:'シリーズA調達に成功 +¥1,000万' },
+    { users:1000000,  title:'100万ユーザー達成!', bonus:30000000, msg:'シリーズB調達に成功 +¥3,000万' },
+    { users:5000000,  title:'500万ユーザー達成!', bonus:100000000, msg:'大型調達に成功 +¥1億' },
+    { users:10000000, title:'1,000万ユーザー達成!!', bonus:0, msg:'国民的SNSの仲間入り。あなたの経営手腕は伝説になった。' },
+  ],
+
+  TICK_MS: 1800,               // 1日あたりのリアル時間(1倍速)
+  HISTORY_MAX: 400,
+};
