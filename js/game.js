@@ -8,6 +8,47 @@ const Game = {
   timer: null,
   speed: 1,
   paused: true,
+  saveKey: 'chirper-tycoon-save-v1',
+
+  // ---------------- セーブデータ ----------------
+  hasSave() {
+    try {
+      return localStorage.getItem(this.saveKey) !== null;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  saveGame() {
+    if (!this.state) return false;
+    try {
+      localStorage.setItem(this.saveKey, JSON.stringify({ version: 1, state: this.state }));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  loadGame() {
+    const previousState = this.state;
+    try {
+      const data = JSON.parse(localStorage.getItem(this.saveKey));
+      if (data?.version !== 1 || !data.state || !Number.isFinite(data.state.day)
+          || !Number.isFinite(data.state.cash) || !Number.isFinite(data.state.users)) {
+        throw new Error('Invalid save data');
+      }
+      this.pause();
+      this.state = data.state;
+      this.state.gameOver = Boolean(this.state.gameOver);
+      this.state.won = Boolean(this.state.won);
+      this.computeReport();
+      return true;
+    } catch (_) {
+      this.state = previousState;
+      try { localStorage.removeItem(this.saveKey); } catch (_) { /* storage unavailable */ }
+      return false;
+    }
+  },
 
   // ---------------- 初期化 ----------------
   newGame() {
@@ -370,7 +411,7 @@ const Game = {
     if (!inc) return;
     const resp = CONFIG.RESPONSES.find(x => x.id === respId);
     let cost = resp.cost ?? (resp.costBase + resp.costPerSev * inc.sev);
-    if (s.cash < cost) { this.log('❌ 資金不足で対応できません。', 'bad'); return; }
+    if (s.cash < cost) { this.log('❌ 資金不足で対応できません。', 'bad'); UI.render(); return; }
     s.cash -= cost;
 
     let prob = resp.base + s.staff.pr * 0.04 + (s.trust - 50) * 0.003;
@@ -398,7 +439,7 @@ const Game = {
   buyServer(key, count = 1) {
     const s = this.state, sv = CONFIG.SERVERS[key];
     const cost = sv.price * count;
-    if (s.cash < cost) { this.log('❌ 資金不足です。', 'bad'); return false; }
+    if (s.cash < cost) { this.log('❌ 資金不足です。', 'bad'); UI.render(); return false; }
     s.cash -= cost;
     s.pendingOrders.push({ key, count, daysLeft: sv.delivery });
     this.log(`🛒 ${sv.name} ×${count} を発注(¥${cost.toLocaleString()}、納期${sv.delivery}日)`, 'info');

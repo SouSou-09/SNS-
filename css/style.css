@@ -33,6 +33,9 @@ h1,h2,h3,h4 { font-weight: 700; }
 .title-sub { color: var(--accent); font-size: 18px; margin: 4px 0 20px; }
 .title-desc { color: var(--muted); margin-bottom: 28px; }
 .title-desc strong { color: var(--gold); }
+.title-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.save-note { color: var(--muted); font-size: 12px; margin-top: 12px; }
+.save-note i { color: var(--good); margin-right: 4px; }
 .title-tips { margin-top: 36px; display: flex; flex-direction: column; gap: 8px; color: var(--muted); font-size: 13px; }
 .title-tips i { color: var(--accent); width: 20px; }
 
@@ -45,6 +48,13 @@ button { font-family: inherit; cursor: pointer; }
 }
 .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
 .btn-primary.big { font-size: 20px; padding: 14px 40px; }
+.btn-secondary {
+  background: var(--bg3); color: var(--text); border: 1px solid var(--accent); border-radius: 8px;
+  padding: 10px 22px; font-size: 15px; font-weight: 700;
+  transition: transform .1s, background .15s;
+}
+.btn-secondary:hover { background: #16324a; transform: translateY(-1px); }
+.btn-secondary.big { font-size: 18px; padding: 14px 32px; }
 .btn-sm {
   background: var(--bg3); color: var(--text); border: 1px solid var(--border);
   border-radius: 6px; padding: 4px 12px; font-size: 13px; font-weight: 500;
