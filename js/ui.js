@@ -184,30 +184,65 @@ const UI = {
   renderDashboard(el, s, r, fromTick) {
     if (!el.dataset.built) {
       el.innerHTML = `
-      <h2 class="section-title"><i class="fa-solid fa-gauge-high"></i>ダッシュボード</h2>
-      <div class="social-pulse card">
-        <div><span class="eyebrow">TODAY'S COMMUNITY</span><h3><i class="fa-solid fa-comments"></i>SNS内の今日の動き</h3></div>
+      <div class="dashboard-heading">
+        <div>
+          <span class="eyebrow">EXECUTIVE OVERVIEW</span>
+          <h2 class="section-title"><i class="fa-solid fa-gauge-high"></i>ダッシュボード</h2>
+        </div>
+        <p>今日の経営状態と、優先して確認すべき変化をまとめています。</p>
+      </div>
+
+      <div id="db-overview" class="dashboard-overview" aria-label="主要経営指標"></div>
+
+      <div class="social-pulse card dashboard-panel">
+        <div class="panel-heading"><span class="eyebrow">TODAY'S COMMUNITY</span><h3><i class="fa-solid fa-comments"></i>SNS内の今日の動き</h3></div>
         <div id="db-social" class="pulse-grid"></div>
       </div>
-      <div class="card-grid">
-        <div class="card"><h3><i class="fa-solid fa-users"></i>ユーザー動向</h3><div id="db-users"></div></div>
-        <div class="card"><h3><i class="fa-solid fa-heart-pulse"></i>サービス品質</h3><div id="db-quality"></div></div>
-        <div class="card"><h3><i class="fa-solid fa-server"></i>インフラ稼働率（ピーク）</h3><div id="db-infra"></div></div>
-        <div class="card"><h3><i class="fa-solid fa-yen-sign"></i>本日の収支見込み</h3><div id="db-money"></div></div>
+
+      <div class="dashboard-primary-grid">
+        <section class="card dashboard-panel dashboard-users"><h3><i class="fa-solid fa-users"></i>ユーザー動向</h3><div id="db-users"></div></section>
+        <section class="card dashboard-panel dashboard-quality"><h3><i class="fa-solid fa-heart-pulse"></i>サービス品質</h3><div id="db-quality"></div></section>
+        <section class="card dashboard-panel dashboard-infra"><h3><i class="fa-solid fa-server"></i>インフラ稼働率 <span>ピーク時</span></h3><div id="db-infra"></div></section>
+        <section class="card dashboard-panel dashboard-money"><h3><i class="fa-solid fa-yen-sign"></i>本日の収支見込み</h3><div id="db-money"></div></section>
       </div>
-      <div class="card-grid social-insights">
-        <div class="card"><h3><i class="fa-solid fa-arrow-trend-up"></i>いまのトレンド</h3><div id="db-trends"></div></div>
-        <div class="card"><h3><i class="fa-solid fa-people-group"></i>ユーザー層</h3><div id="db-segments"></div></div>
+
+      <div class="dashboard-insights-grid">
+        <section class="card dashboard-panel"><h3><i class="fa-solid fa-arrow-trend-up"></i>いまのトレンド</h3><div id="db-trends"></div></section>
+        <section class="card dashboard-panel"><h3><i class="fa-solid fa-people-group"></i>ユーザー層</h3><div id="db-segments"></div></section>
       </div>
-      <div class="card"><h3><i class="fa-solid fa-chart-line"></i>ユーザー数の推移</h3><div class="chart-box"><canvas id="chart-users"></canvas></div></div>
-      <div class="card-grid">
-        <div class="card"><h3><i class="fa-solid fa-sack-dollar"></i>日次損益の推移</h3><div class="chart-box"><canvas id="chart-profit"></canvas></div></div>
-        <div class="card"><h3><i class="fa-solid fa-face-smile"></i>満足度と負荷の推移</h3><div class="chart-box"><canvas id="chart-sat"></canvas></div></div>
+
+      <section class="card dashboard-panel dashboard-chart-wide"><h3><i class="fa-solid fa-chart-line"></i>ユーザー数の推移</h3><div class="chart-box chart-box-primary"><canvas id="chart-users"></canvas></div></section>
+      <div class="dashboard-chart-grid">
+        <section class="card dashboard-panel"><h3><i class="fa-solid fa-sack-dollar"></i>日次損益の推移</h3><div class="chart-box"><canvas id="chart-profit"></canvas></div></section>
+        <section class="card dashboard-panel"><h3><i class="fa-solid fa-face-smile"></i>満足度と負荷の推移</h3><div class="chart-box"><canvas id="chart-sat"></canvas></div></section>
       </div>`;
       el.dataset.built = '1';
       this.buildCharts();
     }
     const netGrowth = r.organicIn + r.promoIn + r.competitorInflow - r.competitorOutflow - r.churnOut - r.wrongBanOut;
+    const loadStatus = r.worstUtil < 0.6 ? '安定' : r.worstUtil < 0.95 ? '要注意' : '危険';
+    const loadTone = r.worstUtil < 0.6 ? 'good' : r.worstUtil < 0.95 ? 'warn' : 'bad';
+    document.getElementById('db-overview').innerHTML = `
+      <article class="overview-card overview-growth">
+        <span><i class="fa-solid fa-user-plus"></i>本日の純増</span>
+        <strong class="${netGrowth >= 0 ? 'good' : 'bad'}">${netGrowth >= 0 ? '+' : ''}${this.num(netGrowth)}<small>人</small></strong>
+        <p>登録 ${this.num(s.users)}人</p>
+      </article>
+      <article class="overview-card overview-profit">
+        <span><i class="fa-solid fa-coins"></i>日次損益</span>
+        <strong class="${r.profit >= 0 ? 'good' : 'bad'}">${r.profit >= 0 ? '+' : ''}${this.yen(r.profit)}</strong>
+        <p>資金 ${this.yen(s.cash)}</p>
+      </article>
+      <article class="overview-card overview-health">
+        <span><i class="fa-solid fa-face-smile"></i>満足度</span>
+        <strong class="${s.satisfaction >= 60 ? 'good' : s.satisfaction >= 45 ? 'warn' : 'bad'}">${s.satisfaction.toFixed(1)}<small>/100</small></strong>
+        <p>信頼度 ${s.trust.toFixed(1)}</p>
+      </article>
+      <article class="overview-card overview-load">
+        <span><i class="fa-solid fa-server"></i>最大負荷</span>
+        <strong class="${loadTone}">${Math.round(r.worstUtil * 100)}<small>%</small></strong>
+        <p class="${loadTone}">${loadStatus}${r.outage ? '・障害発生中' : ''}</p>
+      </article>`;
     document.getElementById('db-social').innerHTML = `
       <div class="pulse-stat"><span>今日来た人</span><strong>${this.num(r.dau)}</strong><small>DAU ${(r.activeRatio*100).toFixed(1)}%</small></div>
       <div class="pulse-stat"><span>見る中心</span><strong>${this.num(r.readers)}</strong><small>DAUの${Math.round(r.readers/Math.max(r.dau,1)*100)}%</small></div>

@@ -42,13 +42,15 @@
   <!-- ヘッダー(KPIバー) -->
   <header id="kpi-bar">
     <div class="kpi-brand"><i class="fa-solid fa-dove"></i> Chirper</div>
-    <div class="kpi-item" title="経過日数"><i class="fa-regular fa-calendar"></i><span id="kpi-day">Day 1</span></div>
-    <div class="kpi-item" title="資金"><i class="fa-solid fa-yen-sign"></i><span id="kpi-cash" class="mono">0</span></div>
-    <div class="kpi-item" title="前日損益"><i class="fa-solid fa-chart-line"></i><span id="kpi-profit" class="mono">±0</span>/日</div>
-    <div class="kpi-item" title="登録ユーザー数"><i class="fa-solid fa-users"></i><span id="kpi-users" class="mono">0</span></div>
-    <div class="kpi-item" title="ユーザー満足度"><i class="fa-solid fa-face-smile"></i><span id="kpi-sat">0</span></div>
-    <div class="kpi-item" title="企業信頼度"><i class="fa-solid fa-handshake"></i><span id="kpi-trust">0</span></div>
-    <div class="kpi-item warn hidden" id="kpi-incident" title="炎上中"><i class="fa-solid fa-fire"></i><span id="kpi-incident-n">0</span></div>
+    <div class="kpi-scroll" aria-label="主要経営指標">
+      <div class="kpi-item" title="経過日数"><i class="fa-regular fa-calendar"></i><span id="kpi-day">Day 1</span></div>
+      <div class="kpi-item" title="資金"><i class="fa-solid fa-yen-sign"></i><span id="kpi-cash" class="mono">0</span></div>
+      <div class="kpi-item" title="前日損益"><i class="fa-solid fa-chart-line"></i><span id="kpi-profit" class="mono">±0</span>/日</div>
+      <div class="kpi-item" title="登録ユーザー数"><i class="fa-solid fa-users"></i><span id="kpi-users" class="mono">0</span></div>
+      <div class="kpi-item" title="ユーザー満足度"><i class="fa-solid fa-face-smile"></i><span id="kpi-sat">0</span></div>
+      <div class="kpi-item" title="企業信頼度"><i class="fa-solid fa-handshake"></i><span id="kpi-trust">0</span></div>
+      <div class="kpi-item warn hidden" id="kpi-incident" title="炎上中"><i class="fa-solid fa-fire"></i><span id="kpi-incident-n">0</span></div>
+    </div>
     <div id="time-controls">
       <button id="btn-pause" title="一時停止"><i class="fa-solid fa-pause"></i></button>
       <button id="btn-play1" title="通常速度"><i class="fa-solid fa-play"></i></button>
