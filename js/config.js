@@ -9,14 +9,17 @@ const CONFIG = {
   BANKRUPT_LINE: -10000000,    // 倒産ライン(負債¥1,000万)
 
   // --- ユーザー行動モデル ---
-  DAU_RATIO: 0.45,             // 登録ユーザーのうち日次アクティブ率
-  ACTIONS_PER_DAU: 250,        // 1DAUあたりのリクエスト数/日
+  DAU_RATIO: 0.42,             // 登録ユーザーのうち日次アクティブ率（曜日・満足度で変動）
+  CONTRIBUTOR_RATIO: 0.18,     // DAUのうち投稿・返信する人
+  CREATOR_RATIO: 0.025,        // DAUのうち継続的に発信する人
+  ACTIONS_PER_DAU: 220,        // 1DAUあたりのリクエスト数/日
   PEAK_FACTOR: 2.5,            // ピーク時倍率(夜間帯)
   DB_QUERY_PER_REQ: 4,         // 1リクエストあたりDBクエリ数
   CACHEABLE_RATIO: 0.7,        // キャッシュ可能クエリ割合
   MB_PER_REQ: 0.8,             // 1リクエストあたり転送量(MB)
-  POSTS_PER_DAU: 6,            // 1DAUあたり投稿+コメント数/日
-  FEED_VIEWS_PER_DAU: 300,     // 1DAUあたりフィード閲覧アイテム数/日
+  POSTS_PER_DAU: 1.8,          // 投稿者1人あたり投稿+返信数/日
+  REACTIONS_PER_DAU: 12,       // いいね等の軽い反応/日
+  FEED_VIEWS_PER_DAU: 140,     // 1DAUあたりフィード閲覧アイテム数/日
   STORAGE_MB_PER_DAU: 3,       // 1DAUあたり新規データ量(MB/日)
   BOT_LOAD_FACTOR: 0.6,        // BOT 1体のサーバー負荷(人間比)
 
@@ -76,7 +79,7 @@ const CONFIG = {
     { name:'LLMモデレーター', detect:0.92, fp:0.015, gpuPer:600000, license:350000,
       desc:'文脈理解型LLM。検出率92% / 誤検出1.5% / GPU 1ユニットあたり60万件/日' },
   ],
-  TOXIC_BASE_RATE: 0.020,      // 投稿のうち有害な割合(基礎)
+  TOXIC_BASE_RATE: 0.006,      // 投稿のうち有害な割合（基礎。コミュニティ状態で変動）
 
   // --- BOT対策 ---
   BOT_AI_TIERS: [
@@ -102,6 +105,8 @@ const CONFIG = {
   BASE_CHURN: 0.005,           // 基礎解約率/日
 
   // --- 炎上インシデント ---
+  INCIDENT_COOLDOWN_DAYS: 10,  // 大きな炎上後は同種の話題が連続しにくい
+  MAX_ACTIVE_INCIDENTS: 2,
   INCIDENT_TYPES: [
     { id:'hate',    name:'差別的投稿の拡散放置', cause:'tox', icon:'fa-fire',
       desc:'ヘイト投稿がトレンド入り。「運営は放置している」と批判殺到。' },
