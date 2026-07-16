@@ -89,6 +89,7 @@ const UI = {
       case 'bots': this.renderBots(el, s, r); break;
       case 'ads': this.renderAds(el, s, r); break;
       case 'crisis': this.renderCrisis(el, s, r); break;
+      case 'competitors': this.renderCompetitors(el, s, r); break;
       case 'staff': this.renderStaff(el, s, r); break;
       case 'finance': this.renderFinance(el, s, r); break;
     }
@@ -111,14 +112,15 @@ const UI = {
     trEl.textContent = Math.round(s.trust);
     trEl.style.color = s.trust >= 60 ? 'var(--good)' : s.trust >= 40 ? 'var(--warn)' : 'var(--bad)';
 
+    const attentionCount = s.incidents.length + (s.buzzPosts?.length || 0);
     const incKpi = document.getElementById('kpi-incident');
-    incKpi.classList.toggle('hidden', s.incidents.length === 0);
-    document.getElementById('kpi-incident-n').textContent = '炎上×' + s.incidents.length;
+    incKpi.classList.toggle('hidden', attentionCount === 0);
+    document.getElementById('kpi-incident-n').textContent = '注目×' + attentionCount;
 
     // バッジ
     const bc = document.getElementById('badge-crisis');
-    bc.classList.toggle('hidden', s.incidents.length === 0);
-    bc.textContent = s.incidents.length;
+    bc.classList.toggle('hidden', attentionCount === 0);
+    bc.textContent = attentionCount;
     const bi = document.getElementById('badge-infra');
     bi.classList.toggle('hidden', r.worstUtil < 0.95);
     bi.textContent = '!';
@@ -192,6 +194,10 @@ const UI = {
         <div class="card"><h3><i class="fa-solid fa-server"></i>インフラ稼働率（ピーク）</h3><div id="db-infra"></div></div>
         <div class="card"><h3><i class="fa-solid fa-yen-sign"></i>本日の収支見込み</h3><div id="db-money"></div></div>
       </div>
+      <div class="card-grid social-insights">
+        <div class="card"><h3><i class="fa-solid fa-arrow-trend-up"></i>いまのトレンド</h3><div id="db-trends"></div></div>
+        <div class="card"><h3><i class="fa-solid fa-people-group"></i>ユーザー層</h3><div id="db-segments"></div></div>
+      </div>
       <div class="card"><h3><i class="fa-solid fa-chart-line"></i>ユーザー数の推移</h3><div class="chart-box"><canvas id="chart-users"></canvas></div></div>
       <div class="card-grid">
         <div class="card"><h3><i class="fa-solid fa-sack-dollar"></i>日次損益の推移</h3><div class="chart-box"><canvas id="chart-profit"></canvas></div></div>
@@ -200,7 +206,7 @@ const UI = {
       el.dataset.built = '1';
       this.buildCharts();
     }
-    const netGrowth = r.organicIn + r.promoIn - r.churnOut - r.wrongBanOut;
+    const netGrowth = r.organicIn + r.promoIn + r.competitorInflow - r.competitorOutflow - r.churnOut - r.wrongBanOut;
     document.getElementById('db-social').innerHTML = `
       <div class="pulse-stat"><span>今日来た人</span><strong>${this.num(r.dau)}</strong><small>DAU ${(r.activeRatio*100).toFixed(1)}%</small></div>
       <div class="pulse-stat"><span>見る中心</span><strong>${this.num(r.readers)}</strong><small>DAUの${Math.round(r.readers/Math.max(r.dau,1)*100)}%</small></div>
@@ -213,6 +219,7 @@ const UI = {
       <div class="stat-row"><span class="lbl">本日の純増見込み</span><span class="val ${netGrowth>=0?'good':'bad'}">${netGrowth>=0?'+':''}${this.num(netGrowth)}人</span></div>
       <div class="stat-row"><span class="lbl">└ 自然流入 / 広告流入</span><span class="val">+${this.num(r.organicIn)} / +${this.num(r.promoIn)}</span></div>
       <div class="stat-row"><span class="lbl">└ 離脱 / 誤BAN起因</span><span class="val bad">-${this.num(r.churnOut)} / -${this.num(r.wrongBanOut)}</span></div>
+      <div class="stat-row"><span class="lbl">└ 競合から流入 / 競合へ流出</span><span class="val ${r.competitorInflow>=r.competitorOutflow?'good':'bad'}">+${this.num(r.competitorInflow)} / -${this.num(r.competitorOutflow)}</span></div>
       <div class="stat-row"><span class="lbl">BOTアカウント</span><span class="val ${r.botRatio>0.08?'bad':'warn'}">${this.num(s.bots)} (${(r.botRatio*100).toFixed(1)}%)</span></div>`;
     document.getElementById('db-quality').innerHTML = `
       <div class="stat-row"><span class="lbl">満足度</span><span class="val ${s.satisfaction>=60?'good':s.satisfaction>=45?'warn':'bad'}">${s.satisfaction.toFixed(1)} / 100</span></div>
@@ -233,6 +240,18 @@ const UI = {
       <div class="stat-row"><span class="lbl">費用合計</span><span class="val bad">-${this.yen(r.cost)}</span></div>
       <div class="stat-row"><span class="lbl">日次損益</span><span class="val ${r.profit>=0?'good':'bad'}">${r.profit>=0?'+':''}${this.yen(r.profit)}</span></div>
       <div class="stat-row"><span class="lbl">資金</span><span class="val ${s.cash>=0?'':'bad'}">${this.yen(s.cash)}</span></div>`;
+    document.getElementById('db-trends').innerHTML = s.trends.slice(0, 5).map((trend, index) => `
+      <div class="trend-row">
+        <span class="trend-rank">${index + 1}</span>
+        <div><b>${this.esc(trend.tag)}</b><small>${trend.category} · ${this.num(trend.volume)}件</small></div>
+        <span class="trend-change ${trend.change >= 0 ? 'up' : 'down'}">${trend.change >= 0 ? '▲' : '▼'} ${Math.abs(trend.change)}</span>
+      </div>`).join('');
+    document.getElementById('db-segments').innerHTML = r.segmentMetrics.map(segment => `
+      <div class="segment-row">
+        <span class="segment-icon" style="--segment-color:${segment.color}"><i class="fa-solid ${segment.icon}"></i></span>
+        <div><b>${segment.name}</b><small>${this.num(segment.users)}人 · DAU ${this.num(segment.dau)}</small></div>
+        <span class="segment-score ${segment.affinity >= 65 ? 'good' : segment.affinity >= 48 ? 'warn' : 'bad'}">${Math.round(segment.affinity)}</span>
+      </div>`).join('');
     this.updateCharts(s);
   },
 
@@ -503,9 +522,39 @@ const UI = {
         </div>`;
       }).join('');
     }
+    const buzzBody = s.buzzPosts.length ? s.buzzPosts.map(buzz => `
+      <div class="buzz-card ${buzz.sentiment}">
+        <div class="buzz-top"><span class="live-dot"></span><b>急上昇中</b><span>発生${buzz.age}日目</span></div>
+        <div class="buzz-author">${this.esc(buzz.author)} <span>· ${this.esc(buzz.tag)}</span></div>
+        <p>${this.esc(buzz.text)}</p>
+        <div class="buzz-metrics">
+          <span><i class="fa-solid fa-eye"></i>${this.num(buzz.reach)}</span>
+          <span><i class="fa-solid fa-retweet"></i>${this.num(buzz.reposts)}</span>
+          <span><i class="fa-solid fa-heart"></i>${this.num(buzz.likes)}</span>
+          <span>拡散速度 ×${buzz.velocity.toFixed(2)}</span>
+        </div>
+        <div class="buzz-actions">
+          ${buzz.sentiment !== 'negative' ? `<button class="btn-sm" onclick="Game.manageBuzz(${buzz.uid},'boost')" ${buzz.managed?'disabled':''}>公式で紹介 ${this.yen(500000)}</button>` : ''}
+          <button class="btn-sm" onclick="Game.manageBuzz(${buzz.uid},'explain')" ${buzz.managed?'disabled':''}>背景説明を追加 ${this.yen(300000)}</button>
+        </div>
+      </div>`).join('') : '<div class="quiet-state">現在、急上昇中のバズ投稿はありません。</div>';
+
+    const requestBody = s.userRequests.map(request => `
+      <div class="request-card ${request.implemented ? 'done' : ''}">
+        <div class="request-head"><div><span>${CONFIG.USER_SEGMENTS.find(segment => segment.id === request.segment)?.name || '全ユーザー'}</span><b>${request.title}</b></div><strong>${Math.round(request.support)}%</strong></div>
+        <p>${request.desc}</p>
+        <div class="request-progress"><i style="width:${request.support}%"></i></div>
+        <div class="request-foot"><span>${this.num(request.votes)}票</span><div>
+          ${request.implemented ? '<span class="implemented-tag"><i class="fa-solid fa-check"></i> 実装済み</span>' : `<button class="btn-sm" onclick="Game.surveyRequest('${request.id}')" ${s.cash < 100000 ? 'disabled' : ''}>アンケート ${this.yen(100000)}</button><button class="btn-sm" onclick="Game.implementRequest('${request.id}')" ${s.cash < request.cost ? 'disabled' : ''}>実装 ${this.yen(request.cost)}</button>`}
+        </div></div>
+      </div>`).join('');
+
     el.innerHTML = `
-      <h2 class="section-title"><i class="fa-solid fa-fire"></i>炎上対応</h2>
+      <h2 class="section-title"><i class="fa-solid fa-fire"></i>世論・炎上対応</h2>
+      <div class="crisis-subnav"><span><i class="fa-solid fa-fire"></i> 炎上案件 ${s.incidents.length}</span><span><i class="fa-solid fa-bolt"></i> バズ ${s.buzzPosts.length}</span><span><i class="fa-solid fa-square-poll-vertical"></i> 要望 ${s.userRequests.filter(item => !item.implemented).length}</span></div>
       ${body}
+      <div class="card"><h3><i class="fa-solid fa-bolt"></i>バズ投稿・拡散モニター</h3><div class="buzz-list">${buzzBody}</div></div>
+      <div class="card"><h3><i class="fa-solid fa-square-poll-vertical"></i>ユーザー要望・アンケート</h3><p class="desc request-intro">支持率を調査してから実装すると、どの層が求めているか判断できます。</p><div class="request-grid">${requestBody}</div></div>
       <div class="card">
         <h3><i class="fa-solid fa-bullhorn"></i>広報(PR)スタッフ: ${s.staff.pr}人 <span class="desc">(対応成功率+4%/人・自然鎮火加速・${this.yen(CONFIG.STAFF.pr.cost)}/日)</span></h3>
         <div class="staff-btns" style="justify-content:flex-start">
@@ -515,6 +564,38 @@ const UI = {
         </div>
         <p class="desc">炎上はヒートが高いほどユーザー離脱と信頼低下が加速します。放置すると数日は延焼し続けます。企業信頼度が高いと対応が成功しやすくなります。</p>
       </div>`;
+  },
+
+  // ---------- 競合SNS ----------
+  renderCompetitors(el, s, r) {
+    const totalMarket = s.users + s.competitors.reduce((sum, competitor) => sum + competitor.users, 0);
+    const chirperShare = s.users / totalMarket * 100;
+    const campaignData = [
+      { id:'youth', name:'学生アンバサダー企画', cost:1500000, target:'Loop', icon:'fa-graduation-cap' },
+      { id:'creator', name:'クリエイター支援', cost:2500000, target:'Echo', icon:'fa-palette' },
+      { id:'business', name:'企業認証キャンペーン', cost:2200000, target:'LinkUp', icon:'fa-briefcase' },
+    ];
+    const competitors = s.competitors.map(competitor => {
+      const share = competitor.users / totalMarket * 100;
+      return `<div class="competitor-card">
+        <div class="competitor-brand"><span style="--competitor-color:${competitor.color}"><i class="fa-solid ${competitor.icon}"></i></span><div><b>${competitor.name}</b><small>${competitor.focus}</small></div></div>
+        <div class="competitor-stats"><div><span>ユーザー</span><b>${this.num(competitor.users)}</b></div><div><span>市場シェア</span><b>${share.toFixed(1)}%</b></div><div><span>魅力度</span><b>${competitor.appeal.toFixed(1)}</b></div></div>
+        <div class="market-bar"><i style="width:${share}%"></i></div>
+        <div class="competitor-change ${competitor.dailyChange >= 0 ? 'up' : 'down'}">前日比 ${competitor.dailyChange >= 0 ? '+' : ''}${this.num(competitor.dailyChange)}人</div>
+      </div>`;
+    }).join('');
+    const campaigns = campaignData.map(campaign => {
+      const days = s.campaigns[campaign.id] || 0;
+      return `<div class="campaign-row"><span class="campaign-icon"><i class="fa-solid ${campaign.icon}"></i></span><div><b>${campaign.name}</b><small>${campaign.target}への流出を10日間抑制</small></div>${days ? `<span class="campaign-active">残り${days}日</span>` : `<button class="btn-sm" onclick="Game.launchCampaign('${campaign.id}')" ${s.cash < campaign.cost ? 'disabled' : ''}>開始 ${this.yen(campaign.cost)}</button>`}</div>`;
+    }).join('');
+    el.innerHTML = `
+      <h2 class="section-title"><i class="fa-solid fa-people-arrows"></i>競合SNS市場</h2>
+      <div class="market-hero card">
+        <div><span class="eyebrow">SOCIAL MARKET</span><h3>Chirper 市場シェア</h3><strong>${chirperShare.toFixed(1)}%</strong></div>
+        <div class="market-summary"><div><span>Chirperユーザー</span><b>${this.num(s.users)}</b></div><div><span>サービス魅力度</span><b>${r.ownAppeal.toFixed(1)}</b></div><div><span>競合からの流入</span><b class="good">+${this.num(r.competitorInflow)}/日</b></div><div><span>競合への流出</span><b class="bad">-${this.num(r.competitorOutflow)}/日</b></div></div>
+      </div>
+      <div class="competitor-grid">${competitors}</div>
+      <div class="card"><h3><i class="fa-solid fa-bullseye"></i>対抗キャンペーン</h3><div class="campaign-list">${campaigns}</div></div>`;
   },
 
   // ---------- 人材 ----------

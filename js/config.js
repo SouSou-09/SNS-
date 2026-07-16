@@ -23,6 +23,48 @@ const CONFIG = {
   STORAGE_MB_PER_DAU: 3,       // 1DAUあたり新規データ量(MB/日)
   BOT_LOAD_FACTOR: 0.6,        // BOT 1体のサーバー負荷(人間比)
 
+  // --- ユーザー層 ---
+  USER_SEGMENTS: [
+    { id:'casual', name:'日常・ライト層', share:0.36, activity:0.82, color:'#60a5fa', icon:'fa-mug-hot', desc:'近況閲覧が中心。速度と使いやすさを重視' },
+    { id:'youth', name:'学生・若年層', share:0.24, activity:1.22, color:'#a78bfa', icon:'fa-graduation-cap', desc:'トレンドやバズへの反応が速く、広告過多に敏感' },
+    { id:'creator', name:'クリエイター', share:0.14, activity:1.38, color:'#f472b6', icon:'fa-palette', desc:'投稿と拡散の中心。収益機会と表現環境を重視' },
+    { id:'business', name:'ビジネス・企業', share:0.11, activity:0.76, color:'#34d399', icon:'fa-briefcase', desc:'信頼性・障害率・ブランドセーフティを重視' },
+    { id:'news', name:'ニュース・議論層', share:0.15, activity:1.08, color:'#f59e0b', icon:'fa-newspaper', desc:'速報と議論に参加。透明性とモデレーションを重視' },
+  ],
+
+  // --- トレンド・バズ ---
+  TREND_TOPICS: [
+    { tag:'#今日の一枚', category:'写真', sentiment:0.8 },
+    { tag:'#朝のひとこと', category:'日常', sentiment:0.7 },
+    { tag:'#仕事術', category:'ビジネス', sentiment:0.5 },
+    { tag:'#推しを語ろう', category:'エンタメ', sentiment:0.9 },
+    { tag:'#いま読んでる', category:'本・文化', sentiment:0.7 },
+    { tag:'#週末どうする', category:'日常', sentiment:0.8 },
+    { tag:'#テックニュース', category:'テクノロジー', sentiment:0.4 },
+    { tag:'#みんなのごはん', category:'グルメ', sentiment:0.9 },
+  ],
+  BUZZ_TEMPLATES: [
+    { text:'何気なく撮った帰り道の写真。空が二色に分かれていた。', tag:'#今日の一枚', sentiment:'positive' },
+    { text:'新人の頃に知りたかった仕事の進め方を図にまとめました。', tag:'#仕事術', sentiment:'positive' },
+    { text:'おすすめ欄の仕様が変わった？ 同じ話題ばかり流れてくる。', tag:'#Chirper改善希望', sentiment:'negative' },
+    { text:'このニュース、見出しだけで判断せず一次情報まで読んでほしい。', tag:'#テックニュース', sentiment:'neutral' },
+  ],
+
+  // --- ユーザー要望 ---
+  USER_REQUESTS: [
+    { id:'bookmark', title:'ブックマークの整理機能', segment:'casual', cost:1200000, effect:1.6, desc:'フォルダ分けと後で読むリストが欲しい' },
+    { id:'creatorAnalytics', title:'投稿アナリティクス', segment:'creator', cost:2800000, effect:2.2, desc:'閲覧・反応・フォロワー推移を詳しく確認したい' },
+    { id:'communityNote', title:'コミュニティノート', segment:'news', cost:3500000, effect:2.5, desc:'誤解を招く投稿に利用者が背景情報を追加したい' },
+    { id:'quietMode', title:'静かなタイムライン', segment:'youth', cost:1800000, effect:1.8, desc:'おすすめや通知を一時的に減らすモードが欲しい' },
+  ],
+
+  // --- 競合SNS ---
+  COMPETITORS: [
+    { id:'loop', name:'Loop', users:180000, appeal:64, color:'#a78bfa', focus:'若年層・短尺コンテンツ', icon:'fa-play' },
+    { id:'echo', name:'Echo', users:130000, appeal:60, color:'#f472b6', focus:'クリエイター収益化', icon:'fa-microphone-lines' },
+    { id:'linkup', name:'LinkUp', users:210000, appeal:67, color:'#34d399', focus:'企業・実名コミュニティ', icon:'fa-link' },
+  ],
+
   // --- サーバーカタログ ---
   SERVERS: {
     web_s: { cat:'web', name:'Web APサーバー(小)', spec:'8vCPU / 32GB RAM', cap:400, capUnit:'req/s',

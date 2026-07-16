@@ -44,6 +44,13 @@ const Game = {
       this.state.incidentCooldown = Number.isFinite(this.state.incidentCooldown) ? this.state.incidentCooldown : 0;
       this.state.timeline = Array.isArray(this.state.timeline) ? this.state.timeline : [];
       this.state.timelineSeq = Number.isFinite(this.state.timelineSeq) ? this.state.timelineSeq : 0;
+      this.state.trends = Array.isArray(this.state.trends) ? this.state.trends : [];
+      this.state.buzzPosts = Array.isArray(this.state.buzzPosts) ? this.state.buzzPosts : [];
+      this.state.buzzSeq = Number.isFinite(this.state.buzzSeq) ? this.state.buzzSeq : 0;
+      this.state.userRequests = Array.isArray(this.state.userRequests) ? this.state.userRequests : this.createUserRequests();
+      this.state.competitors = Array.isArray(this.state.competitors) ? this.state.competitors : this.createCompetitors();
+      this.state.campaigns = this.state.campaigns || {};
+      if (this.state.trends.length === 0) this.updateTrends(this.computeReport(), true);
       if (this.state.timeline.length === 0) this.generateUserPosts(this.computeReport(), 6);
       this.computeReport();
       return true;
@@ -85,6 +92,12 @@ const Game = {
       log: [],
       timeline: [],
       timelineSeq: 0,
+      trends: [],
+      buzzPosts: [],
+      buzzSeq: 0,
+      userRequests: this.createUserRequests(),
+      competitors: this.createCompetitors(),
+      campaigns: {},
       history: { users: [], cash: [], profit: [], satisfaction: [], load: [] },
       milestonesHit: [],
       gameOver: false,
@@ -94,12 +107,28 @@ const Game = {
       graceUsed: false,
     };
     this.log('🎉 SNS「Chirper」サービス開始!初期ユーザー5万人、資金¥5,000万からのスタートです。', 'good');
-    this.generateUserPosts(this.computeReport(), 7);
+    const report = this.computeReport();
+    this.updateTrends(report, true);
+    this.generateUserPosts(report, 7);
   },
 
   log(msg, type = 'info') {
     this.state.log.unshift({ day: this.state.day, msg, type });
     if (this.state.log.length > 120) this.state.log.pop();
+  },
+
+  // ---------------- ソーシャル市場 ----------------
+  createUserRequests() {
+    return CONFIG.USER_REQUESTS.map((request, index) => ({
+      ...request,
+      support: 48 + index * 7 + Math.floor(Math.random() * 12),
+      votes: 800 + Math.floor(Math.random() * 4200),
+      implemented: false,
+    }));
+  },
+
+  createCompetitors() {
+    return CONFIG.COMPETITORS.map(competitor => ({ ...competitor, momentum: 0, dailyChange: 0 }));
   },
 
   // ---------------- タイムライン ----------------
@@ -165,6 +194,142 @@ const Game = {
     if (s.timeline.length > 90) s.timeline.length = 90;
   },
 
+  updateTrends(report, initial = false) {
+    const s = this.state;
+    const previous = new Map((s.trends || []).map(trend => [trend.tag, trend]));
+    let topics = CONFIG.TREND_TOPICS.map(topic => {
+      const old = previous.get(topic.tag);
+      const pulse = 0.72 + Math.random() * 0.75;
+      const volume = Math.round(report.dau * (0.008 + Math.random() * 0.032) * pulse);
+      const momentum = initial ? 20 + Math.random() * 35 : Math.max(5, (old?.momentum || 20) * 0.52 + Math.random() * 55);
+      return { ...topic, volume, momentum, change: old ? Math.round(momentum - old.momentum) : 0 };
+    });
+    for (const buzz of s.buzzPosts || []) {
+      topics.push({ tag:buzz.tag, category:'バズ', sentiment:buzz.sentiment === 'negative' ? -0.5 : 0.7,
+        volume:Math.round(buzz.reach * 0.18), momentum:buzz.velocity * 85, change:Math.round(buzz.velocity * 18) });
+    }
+    if (s.incidents.length) {
+      topics.push({ tag:'#Chirper運営', category:'社会', sentiment:-0.6,
+        volume:Math.round(report.dau * 0.035), momentum:70 + s.incidents[0].heat / 3, change:24 });
+    }
+    s.trends = topics.sort((a, b) => b.momentum - a.momentum).slice(0, 7);
+  },
+
+  rollBuzz(report) {
+    const s = this.state;
+    if (s.buzzPosts.length >= 2 || Math.random() > 0.045) return;
+    const template = CONFIG.BUZZ_TEMPLATES[Math.floor(Math.random() * CONFIG.BUZZ_TEMPLATES.length)];
+    const reach = Math.round(report.dau * (0.05 + Math.random() * 0.12));
+    s.buzzPosts.unshift({
+      uid:++s.buzzSeq, ...template, author:['@haru_snap','@tkm_dev','@daily_reader','@mina_days'][Math.floor(Math.random()*4)],
+      reach, velocity:0.8 + Math.random() * 0.9, age:0, managed:false,
+      likes:Math.round(reach * (0.04 + Math.random() * 0.08)), reposts:Math.round(reach * (0.012 + Math.random() * 0.04)),
+    });
+    this.log(`急上昇ポスト: ${template.tag} が拡散中`, template.sentiment === 'negative' ? 'bad' : 'good');
+  },
+
+  tickBuzz() {
+    const s = this.state;
+    s.buzzPosts = s.buzzPosts.filter(buzz => {
+      buzz.age++;
+      buzz.velocity *= 0.68 + Math.random() * 0.16;
+      buzz.reach += Math.round(buzz.reach * buzz.velocity * 0.34);
+      buzz.likes += Math.round(buzz.reach * 0.012 * buzz.velocity);
+      buzz.reposts += Math.round(buzz.reach * 0.004 * buzz.velocity);
+      if (buzz.sentiment === 'negative') {
+        s.satisfaction = Math.max(0, s.satisfaction - buzz.velocity * 0.08);
+        s.trust = Math.max(0, s.trust - buzz.velocity * 0.035);
+      } else if (buzz.sentiment === 'positive') {
+        s.satisfaction = Math.min(100, s.satisfaction + buzz.velocity * 0.035);
+      }
+      return buzz.age <= 7 && buzz.velocity > 0.08;
+    });
+  },
+
+  manageBuzz(uid, action) {
+    const s = this.state;
+    const buzz = s.buzzPosts.find(item => item.uid === uid);
+    if (!buzz) return;
+    const cost = action === 'boost' ? 500000 : 300000;
+    if (s.cash < cost) { this.log('施策を実行する資金が不足しています。', 'bad'); UI.render(); return; }
+    s.cash -= cost;
+    if (action === 'boost' && buzz.sentiment !== 'negative') {
+      buzz.velocity *= 1.55; buzz.managed = true; s.trust = Math.min(100, s.trust + 0.4);
+      this.log(`${buzz.tag} の好意的な拡散を公式が後押ししました。`, 'good');
+    } else {
+      buzz.velocity *= 0.45; buzz.managed = true; s.trust = Math.min(100, s.trust + 0.7);
+      this.log(`${buzz.tag} に背景説明を追加し、誤解の拡散を抑えました。`, 'good');
+    }
+    UI.render();
+  },
+
+  tickUserRequests() {
+    for (const request of this.state.userRequests) {
+      if (request.implemented) continue;
+      request.votes += Math.round(20 + Math.random() * Math.max(40, this.state.users / 3000));
+      request.support = Math.max(25, Math.min(96, request.support + (Math.random() - 0.43) * 1.4));
+    }
+  },
+
+  surveyRequest(id) {
+    const request = this.state.userRequests.find(item => item.id === id);
+    if (!request || request.implemented || this.state.cash < 100000) return;
+    this.state.cash -= 100000;
+    request.support = Math.min(98, request.support + 3 + Math.random() * 5);
+    request.votes += Math.round(this.state.users * 0.012);
+    this.state.trust = Math.min(100, this.state.trust + 0.3);
+    this.log(`「${request.title}」についてユーザーアンケートを実施しました。`, 'info');
+    UI.render();
+  },
+
+  implementRequest(id) {
+    const s = this.state;
+    const request = s.userRequests.find(item => item.id === id);
+    if (!request || request.implemented) return;
+    if (s.cash < request.cost) { this.log('要望を実装する資金が不足しています。', 'bad'); UI.render(); return; }
+    s.cash -= request.cost;
+    request.implemented = true;
+    s.satisfaction = Math.min(100, s.satisfaction + request.effect * request.support / 100);
+    s.trust = Math.min(100, s.trust + 0.8);
+    this.log(`ユーザー要望「${request.title}」を正式リリースしました。`, 'good');
+    UI.render();
+  },
+
+  tickCompetitors(report) {
+    const s = this.state;
+    for (const competitor of s.competitors) {
+      let growth = 0.001 + (Math.random() - 0.45) * 0.006;
+      if (competitor.id === 'loop' && (s.campaigns.youth || 0) > 0) growth -= 0.004;
+      if (competitor.id === 'echo' && (s.campaigns.creator || 0) > 0) growth -= 0.004;
+      if (competitor.id === 'linkup' && (s.campaigns.business || 0) > 0) growth -= 0.004;
+      competitor.dailyChange = Math.round(competitor.users * growth);
+      competitor.users = Math.max(10000, competitor.users + competitor.dailyChange);
+      competitor.appeal = Math.max(35, Math.min(90, competitor.appeal + (Math.random() - 0.49) * 0.35));
+      competitor.momentum = growth * 100;
+    }
+    for (const key of Object.keys(s.campaigns)) {
+      s.campaigns[key]--;
+      if (s.campaigns[key] <= 0) delete s.campaigns[key];
+    }
+  },
+
+  launchCampaign(segment) {
+    const s = this.state;
+    const campaigns = {
+      youth:{ name:'学生アンバサダー企画', cost:1500000, gain:2600 },
+      creator:{ name:'クリエイター支援プログラム', cost:2500000, gain:1800 },
+      business:{ name:'企業認証キャンペーン', cost:2200000, gain:1400 },
+    };
+    const campaign = campaigns[segment];
+    if (!campaign || s.cash < campaign.cost || s.campaigns[segment] > 0) return;
+    s.cash -= campaign.cost;
+    s.users += campaign.gain;
+    s.campaigns[segment] = 10;
+    s.trust = Math.min(100, s.trust + 0.5);
+    this.log(`${campaign.name}を開始。10日間、競合への流出を抑えます。`, 'good');
+    UI.render();
+  },
+
   // ---------------- キャパシティ計算 ----------------
   capacity() {
     const s = this.state, S = CONFIG.SERVERS;
@@ -202,6 +367,20 @@ const Game = {
     const healthFactor = 0.88 + s.satisfaction / 500 + s.trust / 1000;
     const activeRatio = Math.max(0.24, Math.min(0.62, CONFIG.DAU_RATIO * weeklyPulse * healthFactor));
     const dau = s.users * activeRatio;
+    const segmentMetrics = CONFIG.USER_SEGMENTS.map(segment => {
+      let affinity = s.satisfaction;
+      if (segment.id === 'youth') affinity -= Math.max(0, s.adLoad - 10) * 0.7;
+      if (segment.id === 'creator') affinity += (s.campaigns.creator || 0) > 0 ? 8 : 0;
+      if (segment.id === 'business') affinity += (s.trust - 50) * 0.35 - (s.outageDays || 0) * 4;
+      if (segment.id === 'news') affinity -= Math.max(0, s.incidents.length - 1) * 4;
+      if (segment.id === 'casual') affinity -= Math.max(0, (s.lastReport?.latency || CONFIG.BASE_LATENCY) - 180) / 80;
+      return {
+        ...segment,
+        users: s.users * segment.share,
+        dau: s.users * segment.share * activeRatio * segment.activity,
+        affinity: Math.max(0, Math.min(100, affinity)),
+      };
+    });
     const contributors = dau * CONFIG.CONTRIBUTOR_RATIO * (0.75 + s.satisfaction / 200);
     const creators = dau * CONFIG.CREATOR_RATIO * (0.8 + s.trust / 250);
     const readers = Math.max(0, dau - contributors);
@@ -255,7 +434,9 @@ const Game = {
     const replies = humanPosts * (0.46 + Math.min(0.12, s.satisfaction / 500));
     const originalPosts = Math.max(0, humanPosts - replies);
     const reactions = dau * CONFIG.REACTIONS_PER_DAU * (0.75 + s.satisfaction / 200);
-    const shares = reactions * (0.035 + Math.max(0, s.satisfaction - 50) * 0.0005);
+    const trendMomentum = s.trends?.[0]?.momentum || 0;
+    const trendLift = 1 + Math.min(0.18, trendMomentum / 500);
+    const shares = reactions * (0.035 + Math.max(0, s.satisfaction - 50) * 0.0005) * trendLift;
     const modTier = CONFIG.AI_TIERS[s.aiModTier];
     const gpu = this.gpuDemand();
     // GPU不足なら性能減衰(モデレーション優先割当)
@@ -333,7 +514,14 @@ const Game = {
     const satFactor = (s.satisfaction - 45) / 55;        // 45未満で負成長圧
     const healthyConversation = Math.max(0.65, Math.min(1.25, (replies + shares * 3) / Math.max(humanPosts, 1)));
     const organicIn = s.users * CONFIG.VIRAL_COEF * Math.max(0, satFactor) * (1 - convPenalty)
-                    * (0.7 + s.trust / 100 * 0.6) * healthyConversation;
+                    * (0.7 + s.trust / 100 * 0.6) * healthyConversation * trendLift;
+    const ownAppeal = s.satisfaction * 0.68 + s.trust * 0.32;
+    const competitors = s.competitors || [];
+    const strongestAppeal = competitors.reduce((max, competitor) => Math.max(max, competitor.appeal), 0);
+    const campaignDefense = ['youth','creator','business'].reduce((sum, key) => sum + ((s.campaigns[key] || 0) > 0 ? 2.5 : 0), 0);
+    const competitorOutflow = s.users * Math.max(0, strongestAppeal - ownAppeal - campaignDefense) / 100 * 0.0015;
+    const competitorInflow = competitors.reduce((sum, competitor) =>
+      sum + competitor.users * Math.max(0, ownAppeal - competitor.appeal) / 100 * 0.00045, 0);
     const cpa = CONFIG.PROMO_CPA_BASE * (1 + Math.max(0, 1 - s.satisfaction / 100));
     const promoIn = s.promoBudget / cpa * (1 - convPenalty);
     let churnRate = CONFIG.BASE_CHURN;
@@ -346,8 +534,8 @@ const Game = {
     const wrongBanOut = falseBans * 40; // 誤BAN 1件が波及して周辺ユーザー離脱
 
     return {
-      dau, activeRatio, readers, contributors, creators, humanPosts, botPosts,
-      originalPosts, replies, reactions, shares, healthyConversation,
+      dau, activeRatio, segmentMetrics, readers, contributors, creators, humanPosts, botPosts,
+      originalPosts, replies, reactions, shares, healthyConversation, trendLift,
       peakReqPerSec, dbQueryPerSec, rawQueryPerSec, cacheHit, peakGbps,
       webUtil, dbUtil, bwUtil, storageUtil, worstUtil, latency, errorRate, outage,
       posts, toxicPosts, aiCaught, humanCaught: Math.max(0, humanCaught), toxicVisible, toxicExposure,
@@ -356,7 +544,8 @@ const Game = {
       impressions, ecpm, adRevenue, premiumRevenue, revenue,
       upkeep, cdnCost, staffCost, securityCost, licenseCost, promoCost, autoScaleCost,
       officeCost: CONFIG.OFFICE_BASE_COST, cost, profit,
-      organicIn, promoIn, churnOut, wrongBanOut, churnRate, satDelta,
+      organicIn, promoIn, competitorInflow, competitorOutflow, ownAppeal, campaignDefense,
+      churnOut, wrongBanOut, churnRate, satDelta,
       gpu, cap,
     };
   },
@@ -374,7 +563,7 @@ const Game = {
     s.totalProfit += r.profit;
 
     // ユーザー増減
-    const net = r.organicIn + r.promoIn - r.churnOut - r.wrongBanOut;
+    const net = r.organicIn + r.promoIn + r.competitorInflow - r.competitorOutflow - r.churnOut - r.wrongBanOut;
     s.users = Math.max(1000, s.users + net);
 
     // BOT増減
@@ -411,6 +600,13 @@ const Game = {
       }
       return true;
     });
+
+    // SNS内外の話題・バズ・競合市場を更新。
+    this.updateTrends(r);
+    this.tickBuzz(r);
+    this.rollBuzz(r);
+    this.tickCompetitors(r);
+    this.tickUserRequests();
 
     // ユーザーのタイムラインには、その日の空気を反映したポストが流れる。
     this.generateUserPosts(r, 2 + Math.floor(Math.random() * 3));

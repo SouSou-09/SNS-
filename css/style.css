@@ -298,6 +298,87 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .no-incident { text-align: center; color: var(--muted); padding: 40px 0; }
 .no-incident i { font-size: 44px; color: var(--good); margin-bottom: 10px; display: block; }
 
+/* ===== トレンド・ユーザー層 ===== */
+.trend-row, .segment-row {
+  display: grid; grid-template-columns: 30px minmax(0,1fr) auto; align-items: center; gap: 9px;
+  padding: 8px 0; border-bottom: 1px solid rgba(51,65,85,.55);
+}
+.trend-row:last-child, .segment-row:last-child { border-bottom: 0; }
+.trend-rank { color: var(--muted); font: 700 13px 'JetBrains Mono', monospace; text-align: center; }
+.trend-row b, .segment-row b { display: block; font-size: 12.5px; }
+.trend-row small, .segment-row small { display: block; color: var(--muted); font-size: 10.5px; }
+.trend-change { font: 700 10px 'JetBrains Mono', monospace; }
+.up { color: var(--good); } .down { color: var(--bad); }
+.segment-icon {
+  width: 29px; height: 29px; border-radius: 8px; display: grid; place-items: center;
+  color: var(--segment-color); background: color-mix(in srgb, var(--segment-color) 13%, transparent);
+}
+.segment-score { font: 700 12px 'JetBrains Mono', monospace; }
+
+/* ===== 世論・バズ・要望 ===== */
+.crisis-subnav { display: flex; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; }
+.crisis-subnav span { padding: 5px 10px; border-radius: 20px; background: var(--bg3); color: var(--muted); font-size: 11px; border: 1px solid var(--border); }
+.buzz-list { display: grid; gap: 10px; }
+.buzz-card { padding: 14px; border-radius: 11px; background: var(--bg3); border: 1px solid var(--border); }
+.buzz-card.positive { border-left: 3px solid var(--good); }
+.buzz-card.neutral { border-left: 3px solid var(--accent); }
+.buzz-card.negative { border-left: 3px solid var(--bad); }
+.buzz-top { display: flex; align-items: center; gap: 6px; color: var(--bad); font-size: 10.5px; }
+.buzz-top span:last-child { color: var(--muted); margin-left: auto; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 4px rgba(248,113,113,.12); }
+.buzz-author { margin-top: 9px; color: var(--text); font-size: 12px; font-weight: 700; }
+.buzz-author span { color: var(--accent); font-weight: 500; }
+.buzz-card p { margin: 5px 0 10px; font-size: 13px; line-height: 1.65; }
+.buzz-metrics { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font: 500 10.5px 'JetBrains Mono', monospace; }
+.buzz-metrics i { margin-right: 4px; }
+.buzz-actions { display: flex; gap: 7px; margin-top: 11px; }
+.quiet-state { color: var(--muted); text-align: center; padding: 18px; background: var(--bg3); border-radius: 10px; font-size: 12px; }
+.request-intro { margin: -7px 0 12px; }
+.request-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.request-card { padding: 13px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; }
+.request-card.done { opacity: .7; }
+.request-head { display: flex; justify-content: space-between; gap: 8px; }
+.request-head span { display: block; color: var(--muted); font-size: 9.5px; }
+.request-head b { display: block; font-size: 12.5px; }
+.request-head strong { color: var(--accent); font: 700 15px 'JetBrains Mono', monospace; }
+.request-card p { color: var(--muted); font-size: 11px; margin: 7px 0; min-height: 34px; }
+.request-progress { height: 5px; overflow: hidden; background: #0a0e14; border-radius: 4px; }
+.request-progress i { display: block; height: 100%; background: linear-gradient(90deg, #0ea5e9, var(--accent)); }
+.request-foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 9px; color: var(--muted); font-size: 10px; }
+.request-foot > div { display: flex; gap: 5px; }
+.implemented-tag { color: var(--good); font-weight: 700; }
+
+/* ===== 競合SNS ===== */
+.market-hero { display: grid; grid-template-columns: .7fr 1.6fr; gap: 24px; align-items: center; background: linear-gradient(135deg, #172337, var(--bg2)); }
+.market-hero h3 { margin: 4px 0 0; }
+.market-hero > div > strong { display: block; color: var(--accent); font: 900 38px 'JetBrains Mono', monospace; }
+.market-summary { display: grid; grid-template-columns: repeat(2,1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.market-summary div { background: var(--bg3); padding: 10px 12px; }
+.market-summary span, .market-summary b { display: block; }
+.market-summary span { color: var(--muted); font-size: 10px; }
+.market-summary b { font: 700 13px 'JetBrains Mono', monospace; }
+.competitor-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
+.competitor-card { padding: 15px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.competitor-brand { display: flex; align-items: center; gap: 9px; }
+.competitor-brand > span { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: var(--competitor-color); background: color-mix(in srgb, var(--competitor-color) 14%, transparent); }
+.competitor-brand b, .competitor-brand small { display: block; }
+.competitor-brand small { color: var(--muted); font-size: 9.5px; }
+.competitor-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; margin: 13px 0 9px; }
+.competitor-stats span, .competitor-stats b { display: block; }
+.competitor-stats span { color: var(--muted); font-size: 8.5px; }
+.competitor-stats b { font: 700 11px 'JetBrains Mono', monospace; }
+.market-bar { height: 5px; border-radius: 5px; background: #0a0e14; overflow: hidden; }
+.market-bar i { display: block; height: 100%; background: var(--accent); }
+.competitor-change { margin-top: 7px; font-size: 9.5px; text-align: right; }
+.campaign-list { display: grid; gap: 4px; }
+.campaign-row { display: grid; grid-template-columns: 36px minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid rgba(51,65,85,.5); }
+.campaign-row:last-child { border: 0; }
+.campaign-icon { width: 34px; height: 34px; display: grid; place-items: center; background: var(--bg3); color: var(--accent); border-radius: 9px; }
+.campaign-row b, .campaign-row small { display: block; }
+.campaign-row b { font-size: 12.5px; }
+.campaign-row small { color: var(--muted); font-size: 10.5px; }
+.campaign-active { color: var(--good); font-size: 11px; font-weight: 700; }
+
 /* ===== グラフ ===== */
 .chart-box { position: relative; height: 220px; }
 
@@ -333,6 +414,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 @media (max-width: 980px) {
   #layout { grid-template-columns: 64px 1fr; }
   #log-panel { display: none; }
+  .competitor-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   #kpi-bar { gap: 6px; padding: 8px; font-size: 12px; }
@@ -347,7 +429,11 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .nav-btn { min-width: 48px; justify-content: center; padding: 10px; }
   #tab-content { padding: 14px 12px 82px; max-height: none; overflow: visible; }
   .card { padding: 15px; }
-  .card-grid { grid-template-columns: 1fr; }
+  .card-grid, .request-grid { grid-template-columns: 1fr; }
+  .market-hero { grid-template-columns: 1fr; }
+  .market-summary { grid-template-columns: 1fr 1fr; }
+  .request-foot { align-items: flex-start; flex-direction: column; }
+  .request-foot > div { width: 100%; flex-wrap: wrap; }
   .pulse-grid { grid-template-columns: repeat(2, 1fr); }
   .pulse-stat:last-child { grid-column: 1 / -1; }
   .stat-row { align-items: flex-start; }
