@@ -143,10 +143,14 @@ const UI = {
     if (!el.dataset.built) {
       el.innerHTML = `
       <h2 class="section-title"><i class="fa-solid fa-gauge-high"></i>ダッシュボード</h2>
+      <div class="social-pulse card">
+        <div><span class="eyebrow">TODAY'S COMMUNITY</span><h3><i class="fa-solid fa-comments"></i>SNS内の今日の動き</h3></div>
+        <div id="db-social" class="pulse-grid"></div>
+      </div>
       <div class="card-grid">
         <div class="card"><h3><i class="fa-solid fa-users"></i>ユーザー動向</h3><div id="db-users"></div></div>
         <div class="card"><h3><i class="fa-solid fa-heart-pulse"></i>サービス品質</h3><div id="db-quality"></div></div>
-        <div class="card"><h3><i class="fa-solid fa-server"></i>インフラ稼働率(ピーク)</h3><div id="db-infra"></div></div>
+        <div class="card"><h3><i class="fa-solid fa-server"></i>インフラ稼働率（ピーク）</h3><div id="db-infra"></div></div>
         <div class="card"><h3><i class="fa-solid fa-yen-sign"></i>本日の収支見込み</h3><div id="db-money"></div></div>
       </div>
       <div class="card"><h3><i class="fa-solid fa-chart-line"></i>ユーザー数の推移</h3><div class="chart-box"><canvas id="chart-users"></canvas></div></div>
@@ -158,9 +162,15 @@ const UI = {
       this.buildCharts();
     }
     const netGrowth = r.organicIn + r.promoIn - r.churnOut - r.wrongBanOut;
+    document.getElementById('db-social').innerHTML = `
+      <div class="pulse-stat"><span>今日来た人</span><strong>${this.num(r.dau)}</strong><small>DAU ${(r.activeRatio*100).toFixed(1)}%</small></div>
+      <div class="pulse-stat"><span>見る中心</span><strong>${this.num(r.readers)}</strong><small>DAUの${Math.round(r.readers/Math.max(r.dau,1)*100)}%</small></div>
+      <div class="pulse-stat"><span>投稿・返信する人</span><strong>${this.num(r.contributors)}</strong><small>コア発信者 ${this.num(r.creators)}人</small></div>
+      <div class="pulse-stat"><span>投稿 / 返信</span><strong>${this.num(r.originalPosts)} / ${this.num(r.replies)}</strong><small>人による会話</small></div>
+      <div class="pulse-stat"><span>リアクション</span><strong>${this.num(r.reactions)}</strong><small>シェア ${this.num(r.shares)}件</small></div>`;
     document.getElementById('db-users').innerHTML = `
       <div class="stat-row"><span class="lbl">登録ユーザー</span><span class="val">${this.num(s.users)}人</span></div>
-      <div class="stat-row"><span class="lbl">DAU(日次アクティブ)</span><span class="val">${this.num(r.dau)}人</span></div>
+      <div class="stat-row"><span class="lbl">DAU（日次アクティブ）</span><span class="val">${this.num(r.dau)}人（${(r.activeRatio*100).toFixed(1)}%）</span></div>
       <div class="stat-row"><span class="lbl">本日の純増見込み</span><span class="val ${netGrowth>=0?'good':'bad'}">${netGrowth>=0?'+':''}${this.num(netGrowth)}人</span></div>
       <div class="stat-row"><span class="lbl">└ 自然流入 / 広告流入</span><span class="val">+${this.num(r.organicIn)} / +${this.num(r.promoIn)}</span></div>
       <div class="stat-row"><span class="lbl">└ 離脱 / 誤BAN起因</span><span class="val bad">-${this.num(r.churnOut)} / -${this.num(r.wrongBanOut)}</span></div>
@@ -307,7 +317,9 @@ const UI = {
       <h2 class="section-title"><i class="fa-solid fa-shield-halved"></i>コンテンツモデレーション</h2>
       <div class="card">
         <h3><i class="fa-solid fa-chart-pie"></i>本日の審査状況</h3>
-        <div class="stat-row"><span class="lbl">総投稿数(BOT投稿含む)</span><span class="val">${this.num(r.posts)}件/日</span></div>
+        <div class="stat-row"><span class="lbl">人による投稿・返信</span><span class="val">${this.num(r.humanPosts)}件/日</span></div>
+        <div class="stat-row"><span class="lbl">BOT投稿</span><span class="val ${r.botPosts/r.posts>0.15?'bad':'warn'}">${this.num(r.botPosts)}件/日</span></div>
+        <div class="stat-row"><span class="lbl">審査対象合計</span><span class="val">${this.num(r.posts)}件/日</span></div>
         <div class="stat-row"><span class="lbl">有害投稿</span><span class="val warn">${this.num(r.toxicPosts)}件 (${(r.toxicPosts/Math.max(r.posts,1)*100).toFixed(2)}%)</span></div>
         <div class="stat-row"><span class="lbl">AI検出</span><span class="val good">${this.num(r.aiCaught)}件 (実効検出率${(r.aiDetect*100).toFixed(0)}%)</span></div>
         <div class="stat-row"><span class="lbl">人間モデレーター処理</span><span class="val good">${this.num(r.humanCaught)}件 (能力上限 ${this.num(r.humanCap)}件)</span></div>
@@ -429,7 +441,7 @@ const UI = {
   renderCrisis(el, s, r) {
     let body;
     if (s.incidents.length === 0) {
-      body = `<div class="card"><div class="no-incident"><i class="fa-solid fa-dove"></i>現在、炎上は発生していません。<br><span class="desc">有害投稿の放置・誤BAN・障害・悪質広告・BOT放置が炎上の火種になります。</span></div></div>`;
+      body = `<div class="card"><div class="no-incident"><i class="fa-solid fa-dove"></i>大きな炎上は発生していません。<br><span class="desc">日常的な賛否や小さな批判は通常の会話として推移します。問題が一定規模を超えた場合のみ対応案件になります。</span></div></div>`;
     } else {
       body = s.incidents.map(inc => {
         const respBtns = CONFIG.RESPONSES.map(resp => {

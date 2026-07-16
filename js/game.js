@@ -41,6 +41,7 @@ const Game = {
       this.state = data.state;
       this.state.gameOver = Boolean(this.state.gameOver);
       this.state.won = Boolean(this.state.won);
+      this.state.incidentCooldown = Number.isFinite(this.state.incidentCooldown) ? this.state.incidentCooldown : 0;
       this.computeReport();
       return true;
     } catch (_) {
@@ -67,7 +68,7 @@ const Game = {
       cdnUnits: 1,
       autoScale: false,
       staff: { engineer: 1, mod: 2, pr: 0, adSales: 0, reportTeam: 0 },
-      aiModTier: 0,
+      aiModTier: 1,
       botAiTier: 0,
       captcha: false,
       smsVerify: false,
@@ -76,6 +77,7 @@ const Game = {
       promoBudget: 0,          // マーケ予算 ¥/日
       incidents: [],           // アクティブ炎上
       incidentSeq: 0,
+      incidentCooldown: 0,
       outageDays: 0,
       log: [],
       history: { users: [], cash: [], profit: [], satisfaction: [], load: [] },
@@ -116,7 +118,7 @@ const Game = {
     const modTier = CONFIG.AI_TIERS[s.aiModTier];
     const botTier = CONFIG.BOT_AI_TIERS[s.botAiTier];
     const dau = s.users * CONFIG.DAU_RATIO;
-    const posts = dau * CONFIG.POSTS_PER_DAU + s.bots * 15; // BOTも投稿
+    const posts = dau * CONFIG.CONTRIBUTOR_RATIO * CONFIG.POSTS_PER_DAU + s.bots * 15; // BOTも投稿
     const modNeed = modTier.gpuPer > 0 ? posts / modTier.gpuPer : 0;
     const botNeed = botTier.gpuPer > 0 ? s.bots / botTier.gpuPer : 0;
     return { modNeed, botNeed, total: modNeed + botNeed };
@@ -125,7 +127,16 @@ const Game = {
   // ---------------- 日次レポート計算(現在状態から) ----------------
   computeReport() {
     const s = this.state, cap = this.capacity();
-    const dau = s.users * CONFIG.DAU_RATIO;
+
+    // 実際のSNSに近い「見る人が多数、発信者は一部」の参加構造。
+    // 曜日相当の周期とサービス状態により、DAUは毎日ゆるやかに揺れる。
+    const weeklyPulse = 1 + Math.sin((s.day % 7) / 7 * Math.PI * 2 - 1.2) * 0.06;
+    const healthFactor = 0.88 + s.satisfaction / 500 + s.trust / 1000;
+    const activeRatio = Math.max(0.24, Math.min(0.62, CONFIG.DAU_RATIO * weeklyPulse * healthFactor));
+    const dau = s.users * activeRatio;
+    const contributors = dau * CONFIG.CONTRIBUTOR_RATIO * (0.75 + s.satisfaction / 200);
+    const creators = dau * CONFIG.CREATOR_RATIO * (0.8 + s.trust / 250);
+    const readers = Math.max(0, dau - contributors);
     const effectiveActors = dau + s.bots * CONFIG.BOT_LOAD_FACTOR;
 
     // --- 負荷 ---
@@ -170,7 +181,13 @@ const Game = {
     const outage = errorRate > 0.35;
 
     // --- モデレーション ---
-    const posts = dau * CONFIG.POSTS_PER_DAU + s.bots * 15;
+    const humanPosts = contributors * CONFIG.POSTS_PER_DAU;
+    const botPosts = s.bots * 15;
+    const posts = humanPosts + botPosts;
+    const replies = humanPosts * (0.46 + Math.min(0.12, s.satisfaction / 500));
+    const originalPosts = Math.max(0, humanPosts - replies);
+    const reactions = dau * CONFIG.REACTIONS_PER_DAU * (0.75 + s.satisfaction / 200);
+    const shares = reactions * (0.035 + Math.max(0, s.satisfaction - 50) * 0.0005);
     const modTier = CONFIG.AI_TIERS[s.aiModTier];
     const gpu = this.gpuDemand();
     // GPU不足なら性能減衰(モデレーション優先割当)
@@ -178,7 +195,8 @@ const Game = {
     const modAiCover = gpu.modNeed > 0 ? gpuForMod / gpu.modNeed : 1;
     const aiDetect = modTier.detect * (modTier.gpuPer > 0 ? modAiCover : 1);
 
-    const toxicRate = CONFIG.TOXIC_BASE_RATE * (1 + s.bots / Math.max(s.users, 1) * 3);
+    const communityStress = 1 + Math.max(0, 55 - s.satisfaction) / 80;
+    const toxicRate = CONFIG.TOXIC_BASE_RATE * communityStress * (1 + s.bots / Math.max(s.users, 1) * 2);
     const toxicPosts = posts * toxicRate;
     const aiCaught = toxicPosts * aiDetect;
     const humanCap = s.staff.mod * CONFIG.MOD_CAP_PER_HUMAN;
@@ -245,7 +263,9 @@ const Game = {
 
     // --- 成長 ---
     const satFactor = (s.satisfaction - 45) / 55;        // 45未満で負成長圧
-    const organicIn = s.users * CONFIG.VIRAL_COEF * Math.max(0, satFactor) * (1 - convPenalty) * (0.7 + s.trust / 100 * 0.6);
+    const healthyConversation = Math.max(0.65, Math.min(1.25, (replies + shares * 3) / Math.max(humanPosts, 1)));
+    const organicIn = s.users * CONFIG.VIRAL_COEF * Math.max(0, satFactor) * (1 - convPenalty)
+                    * (0.7 + s.trust / 100 * 0.6) * healthyConversation;
     const cpa = CONFIG.PROMO_CPA_BASE * (1 + Math.max(0, 1 - s.satisfaction / 100));
     const promoIn = s.promoBudget / cpa * (1 - convPenalty);
     let churnRate = CONFIG.BASE_CHURN;
@@ -258,7 +278,9 @@ const Game = {
     const wrongBanOut = falseBans * 40; // 誤BAN 1件が波及して周辺ユーザー離脱
 
     return {
-      dau, peakReqPerSec, dbQueryPerSec, rawQueryPerSec, cacheHit, peakGbps,
+      dau, activeRatio, readers, contributors, creators, humanPosts, botPosts,
+      originalPosts, replies, reactions, shares, healthyConversation,
+      peakReqPerSec, dbQueryPerSec, rawQueryPerSec, cacheHit, peakGbps,
       webUtil, dbUtil, bwUtil, storageUtil, worstUtil, latency, errorRate, outage,
       posts, toxicPosts, aiCaught, humanCaught: Math.max(0, humanCaught), toxicVisible, toxicExposure,
       aiDetect, modAiCover, falseBans, humanCap,
@@ -322,8 +344,9 @@ const Game = {
       return true;
     });
 
-    // 炎上の進行
+    // 炎上の進行（大きな話題にはクールダウン期間を設け、連発を防ぐ）
     this.tickIncidents(r);
+    s.incidentCooldown = Math.max(0, (s.incidentCooldown || 0) - 1);
     // 新規炎上判定
     this.rollIncidents(r);
 
@@ -364,8 +387,8 @@ const Game = {
     const s = this.state;
     s.incidents = s.incidents.filter(inc => {
       inc.age++;
-      // 放置すると加熱、時間経過で少し自然減衰
-      inc.heat += inc.sev * 3.5 - inc.age * 1.6 - s.staff.pr * 0.8;
+      // 注目は初動で伸びるが、通常は数日で関心が別の話題へ移る。
+      inc.heat += inc.sev * 1.8 - inc.age * 2.2 - s.staff.pr * 0.9;
       inc.heat = Math.max(0, Math.min(150, inc.heat));
       if (inc.heat <= 0 || inc.age > 15) {
         this.log(`🕊️ 炎上「${inc.name}」は沈静化しました。`, 'good');
@@ -378,28 +401,32 @@ const Game = {
 
   rollIncidents(r) {
     const s = this.state;
-    if (s.incidents.length >= 3) return;
-    // 原因別の発火確率
+    if (s.incidents.length >= CONFIG.MAX_ACTIVE_INCIDENTS || s.incidents.length > 0 || s.incidentCooldown > 0) return;
+    // 問題があるだけでは炎上しない。一定の露出・規模を超えた時に低確率で社会的話題になる。
     const risks = {
-      tox: Math.min(0.30, r.toxicExposure * 9),
-      fban: Math.min(0.20, r.falseBans * 0.005),
-      outage: r.outage ? 0.22 : 0,
-      ad: s.adQuality === 0 ? 0.05 : s.adQuality === 1 ? 0.012 : 0.003,
-      bot: Math.min(0.18, Math.max(0, r.botRatio - 0.05) * 1.6),
-      random: 0.004,
+      tox: Math.min(0.045, 0.0008 + Math.max(0, r.toxicExposure - 0.003) * 2.4),
+      fban: Math.min(0.035, Math.max(0, r.falseBans - 12) * 0.00035),
+      outage: r.outage ? Math.min(0.09, 0.025 + s.outageDays * 0.012) : 0,
+      ad: s.adQuality === 0 ? 0.014 : s.adQuality === 1 ? 0.002 : 0.0004,
+      bot: Math.min(0.04, Math.max(0, r.botRatio - 0.08) * 0.5),
+      random: 0.0007,
     };
     for (const t of CONFIG.INCIDENT_TYPES) {
       const p = risks[t.cause] || 0;
       if (Math.random() < p * (1.15 - s.trust / 200)) {
-        const sev = 1 + Math.floor(Math.random() * 3) + (s.users > 1000000 ? 1 : 0); // 1-4
+        const scaleBonus = s.users > 1000000 && Math.random() < 0.25 ? 1 : 0;
+        const sevRoll = Math.random();
+        const sev = Math.min(4, (sevRoll < 0.62 ? 1 : sevRoll < 0.9 ? 2 : 3) + scaleBonus);
         const inc = {
           uid: ++s.incidentSeq, id: t.id, name: t.name, desc: t.desc, icon: t.icon,
           sev, heat: 25 + sev * 15, age: 0,
         };
         s.incidents.push(inc);
+        s.incidentCooldown = CONFIG.INCIDENT_COOLDOWN_DAYS;
         this.log(`🔥 炎上発生[重大度${sev}]: ${t.name}`, 'bad');
-        if (this.speed > 0) this.pause();
-        if (typeof UI !== 'undefined') UI.showIncidentAlert(inc);
+        // 小規模な批判はフィード通知のみ。重大案件だけ経営判断のため一時停止する。
+        if (sev >= 3 && this.speed > 0) this.pause();
+        if (sev >= 3 && typeof UI !== 'undefined') UI.showIncidentAlert(inc);
         break; // 1日1件まで
       }
     }
