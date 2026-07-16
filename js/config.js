@@ -181,6 +181,56 @@ const CONFIG = {
       trustOk:4, trustNg:-1, desc:'即効性は低めだが、検証が進むほど着実に収束' },
   ],
 
+  // --- 研究開発ツリー ---
+  RESEARCH: [
+    { id:'dcPlanning', name:'大規模DC設計', cost:8000000, days:7, icon:'fa-compass-drafting', desc:'大型データセンター建設を解禁', unlocks:'dataCenter', requires:[] },
+    { id:'creatorEconomy', name:'クリエイター経済圏', cost:6000000, days:6, icon:'fa-wand-magic-sparkles', desc:'収益分配プログラムを解禁', unlocks:'creatorShare', requires:[] },
+    { id:'globalOps', name:'グローバル運用基盤', cost:12000000, days:10, icon:'fa-earth-asia', desc:'海外市場と地域限定機能を解禁', unlocks:'markets', requires:['dcPlanning'] },
+    { id:'maTeam', name:'M&A専門チーム', cost:10000000, days:8, icon:'fa-building-circle-check', desc:'買収候補のデューデリジェンスを解禁', unlocks:'acquisitions', requires:['creatorEconomy'] },
+  ],
+
+  // --- データセンター ---
+  DATA_CENTERS: {
+    regional: { name:'地方DC', price:20000000, days:10, upkeep:160000, web:18000, db:70000, bandwidth:25, storage:1200, gpu:0, icon:'fa-warehouse', desc:'低コストで基礎容量を拡張' },
+    urban: { name:'都市DC', price:60000000, days:16, upkeep:480000, web:65000, db:230000, bandwidth:90, storage:3500, gpu:0, icon:'fa-city', desc:'低遅延・大容量の国内拠点' },
+    overseas: { name:'海外DC', price:150000000, days:24, upkeep:1250000, web:150000, db:520000, bandwidth:220, storage:8000, gpu:0, icon:'fa-earth-americas', desc:'海外市場の成長と安定運用を支える' },
+    ai: { name:'AI専用DC', price:300000000, days:30, upkeep:2600000, web:30000, db:100000, bandwidth:80, storage:5000, gpu:320, icon:'fa-microchip', desc:'モデレーション・推薦AI向けGPU拠点' },
+  },
+
+  // --- 海外市場 ---
+  MARKETS: {
+    asia: { name:'アジア', entry:30000000, upkeep:300000, growth:1.65, ecpm:0.72, regulation:0, infraNeed:0.8, icon:'fa-earth-asia', desc:'成長が速いが広告単価は低め', feature:'スタンプストア', featureCost:12000000, featureEffect:'成長率+18%' },
+    northAmerica: { name:'北米', entry:70000000, upkeep:750000, growth:1.05, ecpm:1.55, regulation:0, infraNeed:1.15, competition:1.35, icon:'fa-earth-americas', desc:'広告単価が高いが競争も激しい', feature:'ライブ音声ルーム', featureCost:28000000, featureEffect:'広告単価+15%' },
+    europe: { name:'欧州', entry:60000000, upkeep:950000, growth:0.9, ecpm:1.25, regulation:1.35, infraNeed:1.0, trustBonus:0.08, icon:'fa-earth-europe', desc:'企業需要が高いが規制費も高い', feature:'プライバシーセンター', featureCost:22000000, featureEffect:'規制費-35%・信頼度上昇' },
+    southAmerica: { name:'南米', entry:25000000, upkeep:260000, growth:1.35, ecpm:0.62, regulation:0, infraNeed:1.6, icon:'fa-earth-americas', desc:'獲得費用は安いがインフラ投資が必要', feature:'データ節約モード', featureCost:10000000, featureEffect:'インフラ負荷-25%' },
+  },
+  OVERSEAS_EVENTS: [
+    { id:'festival', name:'地域カルチャーフェス', icon:'fa-icons', desc:'現地クリエイターから公式連携の依頼。', choices:[
+      { id:'sponsor', name:'公式スポンサーになる', cost:5000000, users:45000, trust:1.5, desc:'大規模協賛で認知と好感度を獲得' },
+      { id:'community', name:'コミュニティ枠を提供', cost:1200000, users:14000, trust:0.7, desc:'小規模だが堅実に支援' },
+    ] },
+    { id:'regulation', name:'現地規制の改定', icon:'fa-scale-balanced', desc:'データ管理体制について当局から対応を求められた。', choices:[
+      { id:'comply', name:'先行して完全対応', cost:8000000, users:0, trust:3, desc:'高コストだが企業信頼を高める' },
+      { id:'minimum', name:'最低限の対応', cost:1800000, users:-12000, trust:-1.5, desc:'費用を抑える代わりに反発を招く' },
+    ] },
+    { id:'localTrend', name:'ローカルトレンド急騰', icon:'fa-arrow-trend-up', desc:'地域発の話題が急拡散。運営の後押しが注目されている。', choices:[
+      { id:'curate', name:'特集チームを投入', cost:3000000, users:30000, trust:1, desc:'安全に特集し新規利用者を呼び込む' },
+      { id:'organic', name:'自然な拡散に任せる', cost:0, users:9000, trust:0, desc:'費用なしで小さな成長を得る' },
+    ] },
+  ],
+
+  // --- 買収候補 ---
+  ACQUISITIONS: [
+    { id:'moderationAi', name:'モデレーションAI会社', price:35000000, upkeep:120000, icon:'fa-shield-halved', effect:'AI検出率+8%、ライセンス費-20%', desc:'文脈解析モデルと研究チームを獲得' },
+    { id:'streamTech', name:'動画配信技術会社', price:48000000, upkeep:180000, icon:'fa-video', effect:'Web・帯域容量+15%', desc:'低遅延トランスコード技術を内製化' },
+    { id:'adAnalytics', name:'広告分析会社', price:28000000, upkeep:90000, icon:'fa-chart-simple', effect:'広告eCPM+12%', desc:'広告主向け分析基盤を統合' },
+    { id:'smallSns', name:'小規模SNS', price:22000000, upkeep:150000, icon:'fa-users', effect:'ユーザー12万人を獲得', desc:'コミュニティと運営チームを統合' },
+    { id:'security', name:'セキュリティ会社', price:45000000, upkeep:160000, icon:'fa-lock', effect:'信頼度上昇、BOT流入-25%', desc:'不正検知とインシデント対応を強化' },
+  ],
+
+  // --- クリエイター収益分配 ---
+  CREATOR_SHARE_LEVELS: [0, 10, 20, 30],
+
   // --- マイルストーン ---
   MILESTONES: [
     { users:100000,   title:'10万ユーザー達成!', bonus:3000000, msg:'ベンチャーキャピタルから追加出資 +¥300万' },

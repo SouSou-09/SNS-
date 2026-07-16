@@ -379,6 +379,65 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .campaign-row small { color: var(--muted); font-size: 10.5px; }
 .campaign-active { color: var(--good); font-size: 11px; font-weight: 700; }
 
+/* ===== 成長戦略 ===== */
+.strategy-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; padding: 0; overflow: hidden; background: var(--border); }
+.strategy-summary > div { padding: 14px; background: var(--bg2); }
+.strategy-summary span, .strategy-summary b, .strategy-summary small { display: block; }
+.strategy-summary span { color: var(--muted); font-size: 10px; }
+.strategy-summary b { margin: 3px 0; font: 700 16px 'JetBrains Mono', monospace; }
+.strategy-summary small { color: var(--muted); font-size: 9.5px; }
+.strategy-intro { margin: -5px 0 12px; }
+.strategy-list { display: grid; gap: 8px; }
+.strategy-list.research-list, .strategy-list.acquisition-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.strategy-card { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 11px; padding: 12px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg3); transition: border-color .2s, opacity .2s; }
+.strategy-card.completed { border-color: rgba(74, 222, 128, .4); }
+.strategy-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px rgba(56, 189, 248, .15); }
+.strategy-card.locked { opacity: .58; }
+.strategy-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: var(--accent); background: rgba(56, 189, 248, .09); font-size: 16px; }
+.strategy-body b, .strategy-body p, .strategy-body small, .effect-line { display: block; }
+.strategy-body b { font-size: 12.5px; }
+.strategy-body p { margin: 3px 0; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
+.strategy-body small { color: #9ba8ba; font-size: 9.5px; }
+.effect-line { margin-top: 5px; color: var(--accent); font-size: 9.5px; }
+.strategy-action { min-width: 92px; text-align: right; }
+.strategy-action strong, .strategy-action small { display: block; }
+.strategy-action strong { font-size: 12px; }
+.strategy-action small { color: var(--warn); font-size: 9px; }
+.strategy-action button { margin-top: 6px; }
+.status-chip { padding: 5px 8px; border-radius: 999px; white-space: nowrap; font-size: 10px; font-weight: 700; }
+.status-chip.done { color: var(--good); background: rgba(74, 222, 128, .1); }
+.status-chip.active { color: var(--accent); background: rgba(56, 189, 248, .1); }
+.global-risk { display: grid; grid-template-columns: 1fr auto; gap: 3px 14px; margin-top: 12px; padding: 11px 13px; border-radius: 9px; background: rgba(56, 189, 248, .08); }
+.global-risk span { font-size: 11px; }
+.global-risk b { color: var(--accent); font: 700 13px 'JetBrains Mono', monospace; }
+.global-risk small { grid-column: 1 / -1; color: var(--muted); font-size: 9.5px; }
+.global-risk.danger { background: rgba(248, 113, 113, .08); }
+.global-risk.danger b { color: var(--bad); }
+.share-display { display: grid; grid-template-columns: 90px 1fr; gap: 14px; align-items: center; margin-bottom: 10px; }
+.share-display > strong { color: var(--accent); font: 900 36px 'JetBrains Mono', monospace; }
+.share-display b { font-size: 12px; }
+.share-display p { margin-top: 4px; color: var(--muted); font-size: 10.5px; }
+.range-labels { display: flex; justify-content: space-between; gap: 5px; margin-top: 5px; color: var(--muted); font-size: 9px; }
+.locked-panel { position: relative; opacity: .68; }
+.locked-note { margin-top: 9px; color: var(--warn); font-size: 10px; }
+.local-feature { display: block; margin-top: 6px; color: #c4b5fd; font-size: 9.5px; }
+.strategy-action .status-chip + button { display: block; margin: 8px 0 0 auto; }
+.event-title { margin: 18px 0 10px !important; }
+.overseas-event { padding: 15px; border: 1px solid #6d5aa8; border-radius: 11px; background: linear-gradient(135deg, rgba(109,90,168,.18), var(--bg3)); }
+.event-head { display: flex; align-items: center; gap: 10px; }
+.event-head > span { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; color: #c4b5fd; background: rgba(196,181,253,.1); }
+.event-head b, .event-head small { display: block; }
+.event-head small { color: var(--muted); font-size: 9.5px; }
+.overseas-event > p { margin: 10px 0; color: var(--muted); font-size: 11px; }
+.event-choices { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+.event-choices button { padding: 10px; text-align: left; color: var(--text); background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; }
+.event-choices button:hover:not(:disabled) { border-color: #c4b5fd; }
+.event-choices button:disabled { opacity: .4; cursor: not-allowed; }
+.event-choices b, .event-choices span, .event-choices small { display: block; }
+.event-choices b { font-size: 11px; }
+.event-choices span { margin: 3px 0; color: var(--warn); font-size: 9px; }
+.event-choices small { color: var(--muted); font-size: 9px; }
+
 /* ===== グラフ ===== */
 .chart-box { position: relative; height: 220px; }
 
@@ -415,6 +474,8 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   #layout { grid-template-columns: 64px 1fr; }
   #log-panel { display: none; }
   .competitor-grid { grid-template-columns: 1fr; }
+  .strategy-list.research-list, .strategy-list.acquisition-list { grid-template-columns: 1fr; }
+  .strategy-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
   #kpi-bar { gap: 6px; padding: 8px; font-size: 12px; }
@@ -432,6 +493,11 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .card-grid, .request-grid { grid-template-columns: 1fr; }
   .market-hero { grid-template-columns: 1fr; }
   .market-summary { grid-template-columns: 1fr 1fr; }
+  .strategy-summary { grid-template-columns: 1fr; }
+  .strategy-card { grid-template-columns: 38px minmax(0, 1fr); }
+  .strategy-card > button, .strategy-card > .status-chip, .strategy-action { grid-column: 2; justify-self: start; text-align: left; }
+  .share-display { grid-template-columns: 1fr; }
+  .range-labels { font-size: 8px; }
   .request-foot { align-items: flex-start; flex-direction: column; }
   .request-foot > div { width: 100%; flex-wrap: wrap; }
   .pulse-grid { grid-template-columns: repeat(2, 1fr); }
