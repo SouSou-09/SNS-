@@ -85,6 +85,7 @@ const UI = {
     switch (this.currentTab) {
       case 'dashboard': this.renderDashboard(el, s, r, fromTick); break;
       case 'infra': this.renderInfra(el, s, r); break;
+      case 'strategy': this.renderStrategy(el, s, r); break;
       case 'moderation': this.renderModeration(el, s, r); break;
       case 'bots': this.renderBots(el, s, r); break;
       case 'ads': this.renderAds(el, s, r); break;
@@ -362,6 +363,92 @@ const UI = {
       <div class="card-grid">${Object.keys(CONFIG.SERVERS).map(serverCard).join('')}</div>`;
   },
 
+  // ---------- 成長戦略 ----------
+  renderStrategy(el, s, r) {
+    const completed = id => s.research.completed.includes(id);
+    const activeResearch = s.research.active && CONFIG.RESEARCH.find(item => item.id === s.research.active.id);
+    const researchCards = CONFIG.RESEARCH.map(item => {
+      const done = completed(item.id);
+      const active = s.research.active?.id === item.id;
+      const missing = (item.requires || []).filter(id => !completed(id));
+      const requirement = missing.map(id => CONFIG.RESEARCH.find(project => project.id === id)?.name).filter(Boolean).join('、');
+      return `<div class="strategy-card research-node ${done ? 'completed' : active ? 'active' : missing.length ? 'locked' : ''}">
+        <div class="strategy-icon"><i class="fa-solid ${item.icon}"></i></div>
+        <div class="strategy-body"><b>${item.name}</b><p>${item.desc}</p><small>${this.yen(item.cost)} · 研究${item.days}日${requirement ? ` · 前提: ${requirement}` : ''}</small></div>
+        ${done ? '<span class="status-chip done">完了</span>' : active ? `<span class="status-chip active">残り${s.research.active.daysLeft}日</span>` : `<button class="btn-sm" onclick="Game.startResearch('${item.id}')" ${s.research.active || missing.length || s.cash < item.cost ? 'disabled' : ''}>研究開始</button>`}
+      </div>`;
+    }).join('');
+
+    const pendingDc = key => s.dcProjects.filter(project => project.key === key);
+    const dcCards = Object.entries(CONFIG.DATA_CENTERS).map(([key, facility]) => {
+      const projects = pendingDc(key);
+      return `<div class="strategy-card facility-card ${!completed('dcPlanning') ? 'locked' : ''}">
+        <div class="strategy-icon"><i class="fa-solid ${facility.icon}"></i></div>
+        <div class="strategy-body"><b>${facility.name}</b><p>${facility.desc}</p>
+          <small>${this.yen(facility.price)} · 工期${facility.days}日 · 維持${this.yen(facility.upkeep)}/日</small>
+          <span class="effect-line">Web ${this.num(facility.web)} req/s / DB ${this.num(facility.db)} q/s / 回線 ${facility.bandwidth}Gbps${facility.gpu ? ` / GPU ${facility.gpu}` : ''}</span>
+        </div>
+        <div class="strategy-action"><strong>${s.dataCenters[key] || 0}拠点</strong>${projects.map(project => `<small>建設中 残り${project.daysLeft}日</small>`).join('')}<button class="btn-sm" onclick="Game.buildDataCenter('${key}')" ${!completed('dcPlanning') || s.cash < facility.price ? 'disabled' : ''}>建設</button></div>
+      </div>`;
+    }).join('');
+
+    const marketCards = Object.entries(CONFIG.MARKETS).map(([key, market]) => {
+      const opened = Boolean(s.markets[key]);
+      const featureLive = Boolean(s.markets[key]?.feature);
+      return `<div class="strategy-card market-card ${opened ? 'completed' : !completed('globalOps') ? 'locked' : ''}">
+        <div class="strategy-icon"><i class="fa-solid ${market.icon}"></i></div>
+        <div class="strategy-body"><b>${market.name}</b><p>${market.desc}</p><small>初期${this.yen(market.entry)} · 継続${this.yen(market.upkeep)}/日</small>
+          <span class="effect-line">成長 ×${market.growth.toFixed(2)} / 広告単価 ×${market.ecpm.toFixed(2)} / インフラ需要 ${market.infraNeed.toFixed(1)}</span>
+          <span class="local-feature"><i class="fa-solid fa-location-dot"></i> 限定: ${market.feature} — ${market.featureEffect}</span>
+        </div>
+        <div class="strategy-action">${opened ? (featureLive ? '<span class="status-chip done">限定機能 公開中</span>' : `<span class="status-chip active">展開中</span><button class="btn-sm" onclick="Game.launchMarketFeature('${key}')" ${s.cash < market.featureCost ? 'disabled' : ''}>限定機能 ${this.yen(market.featureCost)}</button>`) : `<button class="btn-sm" onclick="Game.enterMarket('${key}')" ${!completed('globalOps') || s.cash < market.entry ? 'disabled' : ''}>進出</button>`}</div>
+      </div>`;
+    }).join('');
+
+    const eventData = s.overseasEvent && CONFIG.OVERSEAS_EVENTS.find(item => item.id === s.overseasEvent.eventId);
+    const overseasEvent = eventData ? `<div class="overseas-event">
+      <div class="event-head"><span><i class="fa-solid ${eventData.icon}"></i></span><div><small>${CONFIG.MARKETS[s.overseasEvent.marketId].name} · Day ${s.overseasEvent.day}</small><b>${eventData.name}</b></div></div>
+      <p>${eventData.desc}</p>
+      <div class="event-choices">${eventData.choices.map(choice => `<button onclick="Game.resolveOverseasEvent('${choice.id}')" ${s.cash < choice.cost ? 'disabled' : ''}><b>${choice.name}</b><span>${choice.cost ? this.yen(choice.cost) : '無料'} · ユーザー ${choice.users >= 0 ? '+' : ''}${this.num(choice.users)} · 信頼 ${choice.trust >= 0 ? '+' : ''}${choice.trust}</span><small>${choice.desc}</small></button>`).join('')}</div>
+    </div>` : (r.activeMarkets.length ? '<div class="quiet-state">現在、対応が必要な海外イベントはありません。</div>' : '');
+
+    const acquisitionCards = CONFIG.ACQUISITIONS.map(company => {
+      const owned = s.acquisitions.includes(company.id);
+      return `<div class="strategy-card acquisition-card ${owned ? 'completed' : !completed('maTeam') ? 'locked' : ''}">
+        <div class="strategy-icon"><i class="fa-solid ${company.icon}"></i></div>
+        <div class="strategy-body"><b>${company.name}</b><p>${company.desc}</p><small>${this.yen(company.price)} · 統合費${this.yen(company.upkeep)}/日</small><span class="effect-line">${company.effect}</span></div>
+        ${owned ? '<span class="status-chip done">買収済み</span>' : `<button class="btn-sm" onclick="Game.acquireCompany('${company.id}')" ${!completed('maTeam') || s.cash < company.price ? 'disabled' : ''}>買収</button>`}
+      </div>`;
+    }).join('');
+
+    const shareCopy = {
+      0:'利益最大。ただし有力クリエイターが競合へ流出します。',
+      10:'標準的な還元。収益性と定着のバランス型です。',
+      20:'投稿とバズが増加し、コミュニティの成長が加速します。',
+      30:'強い囲い込み。成長力は最大ですが利益率が大幅に低下します。',
+    }[s.creatorShare];
+
+    el.innerHTML = `
+      <h2 class="section-title"><i class="fa-solid fa-diagram-project"></i>成長戦略・研究開発</h2>
+      <div class="strategy-summary card">
+        <div><span>研究</span><b>${s.research.completed.length} / ${CONFIG.RESEARCH.length}</b><small>${activeResearch ? `${activeResearch.name} 残り${s.research.active.daysLeft}日` : '研究枠は空いています'}</small></div>
+        <div><span>データセンター</span><b>${Object.values(s.dataCenters).reduce((a, b) => a + b, 0)}拠点</b><small>建設中 ${s.dcProjects.length}件</small></div>
+        <div><span>海外市場</span><b>${r.activeMarkets.length}地域</b><small>現地費 ${this.yen(r.marketCost)}/日</small></div>
+        <div><span>戦略固定費</span><b class="bad">${this.yen(r.dcCost + r.marketCost + r.acquisitionCost)}/日</b><small>買収・設備・海外運営</small></div>
+      </div>
+
+      <div class="card"><h3><i class="fa-solid fa-flask"></i>研究開発ツリー</h3><p class="desc strategy-intro">研究は同時に1件。費用を先払いし、所定の日数が経過すると新しい経営手段が解禁されます。</p><div class="strategy-list research-list">${researchCards}</div></div>
+      <div class="card"><h3><i class="fa-solid fa-building"></i>データセンター建設</h3><p class="desc strategy-intro">完成まで10〜30日。稼働後は電力・人員・保守費が毎日発生します。先行投資と障害リスクを見極めてください。</p><div class="strategy-list">${dcCards}</div></div>
+      <div class="card"><h3><i class="fa-solid fa-globe"></i>海外展開・地域限定機能</h3><p class="desc strategy-intro">市場を増やすほど翻訳・サポート・法務・サーバー費が増加。進出後は地域限定機能を公開でき、現地イベントが発生します。</p><div class="strategy-list">${marketCards}</div>${r.activeMarkets.length ? `<div class="global-risk ${r.globalInfraPenalty > 0.4 ? 'danger' : ''}"><span>海外インフラ不足度</span><b>${Math.round(r.globalInfraPenalty * 100)}%</b><small>成長効果 ×${r.marketGrowthFactor.toFixed(2)} / 広告単価効果 ×${r.marketEcpmFactor.toFixed(2)}</small></div><h3 class="event-title"><i class="fa-solid fa-calendar-star"></i>海外限定イベント</h3>${overseasEvent}` : ''}</div>
+      <div class="card ${!completed('creatorEconomy') ? 'locked-panel' : ''}"><h3><i class="fa-solid fa-coins"></i>クリエイター収益分配</h3>
+        <div class="share-display"><strong>${s.creatorShare}%</strong><div><b>広告収益から本日 ${this.yen(r.creatorPayout)} を還元</b><p>${shareCopy}</p></div></div>
+        <input type="range" min="0" max="30" step="10" value="${s.creatorShare}" oninput="Game.setCreatorShare(+this.value)" ${!completed('creatorEconomy') ? 'disabled' : ''}>
+        <div class="range-labels"><span>0% 利益優先</span><span>10% 標準</span><span>20% 投稿増</span><span>30% 囲い込み</span></div>
+        ${!completed('creatorEconomy') ? '<p class="locked-note"><i class="fa-solid fa-lock"></i>「クリエイター経済圏」の研究で解禁</p>' : ''}
+      </div>
+      <div class="card"><h3><i class="fa-solid fa-handshake"></i>買収候補</h3><p class="desc strategy-intro">大手競合は買収できません。専門技術や小規模コミュニティを持つ企業を統合できます。</p><div class="strategy-list acquisition-list">${acquisitionCards}</div></div>`;
+  },
+
   // ---------- モデレーション ----------
   renderModeration(el, s, r) {
     const tierHtml = CONFIG.AI_TIERS.map((t, i) => `
@@ -634,6 +721,10 @@ const UI = {
         <div class="card"><h3><i class="fa-solid fa-arrow-trend-down"></i>費用</h3>
           <table class="fin-table">
             <tr><td>サーバー維持費(電気・保守)</td><td>-${this.yen(r.upkeep)}</td></tr>
+            <tr><td>データセンター維持費</td><td>-${this.yen(r.dcCost)}</td></tr>
+            <tr><td>海外市場運営費</td><td>-${this.yen(r.marketCost)}</td></tr>
+            <tr><td>買収企業の統合・運営費</td><td>-${this.yen(r.acquisitionCost)}</td></tr>
+            <tr><td>クリエイター収益分配 (${s.creatorShare}%)</td><td>-${this.yen(r.creatorPayout)}</td></tr>
             <tr><td>CDN契約 (${s.cdnUnits}契約)</td><td>-${this.yen(r.cdnCost)}</td></tr>
             <tr><td>クラウドオートスケール従量課金</td><td>-${this.yen(r.autoScaleCost)}</td></tr>
             <tr><td>人件費</td><td>-${this.yen(r.staffCost)}</td></tr>

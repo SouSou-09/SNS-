@@ -50,6 +50,15 @@ const Game = {
       this.state.userRequests = Array.isArray(this.state.userRequests) ? this.state.userRequests : this.createUserRequests();
       this.state.competitors = Array.isArray(this.state.competitors) ? this.state.competitors : this.createCompetitors();
       this.state.campaigns = this.state.campaigns || {};
+      this.state.research = this.state.research || { completed:[], active:null };
+      this.state.research.completed = Array.isArray(this.state.research.completed) ? this.state.research.completed : [];
+      this.state.dataCenters = this.state.dataCenters || {};
+      this.state.dcProjects = Array.isArray(this.state.dcProjects) ? this.state.dcProjects : [];
+      this.state.markets = this.state.markets || {};
+      this.state.overseasEvent = this.state.overseasEvent || null;
+      this.state.overseasEventCooldown = Number.isFinite(this.state.overseasEventCooldown) ? this.state.overseasEventCooldown : 5;
+      this.state.creatorShare = Number.isFinite(this.state.creatorShare) ? this.state.creatorShare : 0;
+      this.state.acquisitions = Array.isArray(this.state.acquisitions) ? this.state.acquisitions : [];
       this.state.incidents = (this.state.incidents || []).map(inc => ({
         ...inc,
         minDays: Number.isFinite(inc.minDays) ? inc.minDays : CONFIG.INCIDENT_MIN_DAYS[inc.sev],
@@ -114,6 +123,14 @@ const Game = {
       userRequests: this.createUserRequests(),
       competitors: this.createCompetitors(),
       campaigns: {},
+      research: { completed:[], active:null },
+      dataCenters: {},
+      dcProjects: [],
+      markets: {},
+      overseasEvent: null,
+      overseasEventCooldown: 5,
+      creatorShare: 0,
+      acquisitions: [],
       history: { users: [], cash: [], profit: [], satisfaction: [], load: [] },
       milestonesHit: [],
       gameOver: false,
@@ -399,13 +416,24 @@ const Game = {
     const s = this.state, S = CONFIG.SERVERS;
     const engBonus = 1 + 0.02 * s.staff.engineer;
     const cnt = k => s.servers[k] || 0;
+    const dc = Object.entries(s.dataCenters || {}).reduce((total, [key, count]) => {
+      const facility = CONFIG.DATA_CENTERS[key];
+      if (!facility) return total;
+      total.web += facility.web * count;
+      total.db += facility.db * count;
+      total.bandwidth += facility.bandwidth * count;
+      total.storage += facility.storage * count;
+      total.gpu += facility.gpu * count;
+      return total;
+    }, { web:0, db:0, bandwidth:0, storage:0, gpu:0 });
+    const streamBonus = (s.acquisitions || []).includes('streamTech') ? 1.15 : 1;
     return {
-      webReq: (cnt('web_s') * S.web_s.cap + cnt('web_m') * S.web_m.cap + cnt('web_l') * S.web_l.cap) * engBonus,
-      dbQuery: (cnt('db_s') * S.db_s.cap + cnt('db_m') * S.db_m.cap + cnt('db_l') * S.db_l.cap) * engBonus,
+      webReq: ((cnt('web_s') * S.web_s.cap + cnt('web_m') * S.web_m.cap + cnt('web_l') * S.web_l.cap) + dc.web) * engBonus * streamBonus,
+      dbQuery: ((cnt('db_s') * S.db_s.cap + cnt('db_m') * S.db_m.cap + cnt('db_l') * S.db_l.cap) + dc.db) * engBonus,
       cacheQuery: cnt('cache') * S.cache.cap * engBonus,
-      gpuUnits: cnt('gpu') * S.gpu.cap,
-      storageTB: cnt('storage') * S.storage.cap,
-      bandwidthGbps: s.cdnUnits * CONFIG.CDN_UNIT_GBPS,
+      gpuUnits: cnt('gpu') * S.gpu.cap + dc.gpu,
+      storageTB: cnt('storage') * S.storage.cap + dc.storage,
+      bandwidthGbps: (s.cdnUnits * CONFIG.CDN_UNIT_GBPS + dc.bandwidth) * streamBonus,
     };
   },
 
@@ -424,6 +452,18 @@ const Game = {
   // ---------------- 日次レポート計算(現在状態から) ----------------
   computeReport() {
     const s = this.state, cap = this.capacity();
+    const activeMarkets = Object.keys(s.markets || {}).map(key => ({ key, ...CONFIG.MARKETS[key], status:s.markets[key] })).filter(market => market.name);
+    const marketGrowthFactor = 1 + activeMarkets.reduce((sum, market) => sum + (market.growth - 1) * 0.18 + (market.status.feature ? 0.06 : 0), 0);
+    const marketEcpmFactor = Math.max(0.7, 1 + activeMarkets.reduce((sum, market) => sum + (market.ecpm - 1) * 0.12 + (market.key === 'northAmerica' && market.status.feature ? 0.15 : 0), 0));
+    const marketCost = activeMarkets.reduce((sum, market) => {
+      const regulationCost = market.upkeep * (market.regulation || 0) * (market.key === 'europe' && market.status.feature ? 0.65 : 1);
+      return sum + market.upkeep + regulationCost;
+    }, 0);
+    const marketInfraNeed = activeMarkets.reduce((sum, market) => sum + market.infraNeed * (market.key === 'southAmerica' && market.status.feature ? 0.75 : 1), 0);
+    const overseasCoverage = (s.dataCenters?.overseas || 0) * 2 + (s.dataCenters?.urban || 0) * 0.2;
+    const globalInfraPenalty = Math.max(0, marketInfraNeed - overseasCoverage) / Math.max(1, marketInfraNeed);
+    const creatorGrowthFactor = ({ 0:0.88, 10:1, 20:1.16, 30:1.32 })[s.creatorShare] || 1;
+    const acquisitionCost = (s.acquisitions || []).reduce((sum, id) => sum + (CONFIG.ACQUISITIONS.find(item => item.id === id)?.upkeep || 0), 0);
 
     // 実際のSNSに近い「見る人が多数、発信者は一部」の参加構造。
     // 曜日相当の周期とサービス状態により、DAUは毎日ゆるやかに揺れる。
@@ -434,7 +474,7 @@ const Game = {
     const segmentMetrics = CONFIG.USER_SEGMENTS.map(segment => {
       let affinity = s.satisfaction;
       if (segment.id === 'youth') affinity -= Math.max(0, s.adLoad - 10) * 0.7;
-      if (segment.id === 'creator') affinity += (s.campaigns.creator || 0) > 0 ? 8 : 0;
+      if (segment.id === 'creator') affinity += ((s.campaigns.creator || 0) > 0 ? 8 : 0) + s.creatorShare * 0.45;
       if (segment.id === 'business') affinity += (s.trust - 50) * 0.35 - (s.outageDays || 0) * 4;
       if (segment.id === 'news') affinity -= Math.max(0, s.incidents.length - 1) * 4;
       if (segment.id === 'casual') affinity -= Math.max(0, (s.lastReport?.latency || CONFIG.BASE_LATENCY) - 180) / 80;
@@ -483,12 +523,13 @@ const Game = {
     let latency = CONFIG.BASE_LATENCY;
     const congestion = u => u < 0.6 ? 0 : u < 1 ? Math.pow((u - 0.6) / 0.4, 2) : 1;
     latency += 400 * congestion(webUtil) + 500 * congestion(dbUtil) + 250 * congestion(bwUtil);
+    latency += globalInfraPenalty * activeMarkets.length * 90;
     if (cacheHit > 0) latency -= 15;
     latency = Math.max(40, latency);
 
     // 障害判定(稼働率100%超過分に応じてエラー率上昇)
     const overload = Math.max(effShortWeb / Math.max(cap.webReq, 1), effShortDb / Math.max(cap.dbQuery, 1), effShortBw / Math.max(cap.bandwidthGbps, 1));
-    const errorRate = Math.min(0.9, overload * 1.2);
+    const errorRate = Math.min(0.9, Math.max(overload * 1.2, globalInfraPenalty * activeMarkets.length * 0.08));
     const outage = errorRate > 0.35;
 
     // --- モデレーション ---
@@ -506,7 +547,8 @@ const Game = {
     // GPU不足なら性能減衰(モデレーション優先割当)
     const gpuForMod = Math.min(gpu.modNeed, cap.gpuUnits);
     const modAiCover = gpu.modNeed > 0 ? gpuForMod / gpu.modNeed : 1;
-    const aiDetect = modTier.detect * (modTier.gpuPer > 0 ? modAiCover : 1);
+    const acquisitionAiBonus = (s.acquisitions || []).includes('moderationAi') ? 0.08 : 0;
+    const aiDetect = Math.min(0.99, modTier.detect * (modTier.gpuPer > 0 ? modAiCover : 1) + acquisitionAiBonus);
 
     const communityStress = 1 + Math.max(0, 55 - s.satisfaction) / 80;
     const toxicRate = CONFIG.TOXIC_BASE_RATE * communityStress * (1 + s.bots / Math.max(s.users, 1) * 2);
@@ -529,7 +571,8 @@ const Game = {
     let signupBlock = 0, convPenalty = 0;
     if (s.captcha) { signupBlock += CONFIG.CAPTCHA.block; convPenalty += CONFIG.CAPTCHA.convPenalty; }
     if (s.smsVerify) { signupBlock += (1 - signupBlock) * CONFIG.SMS.block; convPenalty += CONFIG.SMS.convPenalty; }
-    const botInflow = s.users * botInflowRate * (1 - signupBlock);
+    const securityBotFactor = (s.acquisitions || []).includes('security') ? 0.75 : 1;
+    const botInflow = s.users * botInflowRate * (1 - signupBlock) * securityBotFactor;
     const botRatio = s.bots / Math.max(s.users + s.bots, 1);
 
     // --- 満足度への影響を集計 ---
@@ -555,10 +598,13 @@ const Game = {
     ecpm *= 0.5 + s.satisfaction / 100 * 0.8;            // 満足度でエンゲージ変動
     ecpm *= 0.6 + s.trust / 100 * 0.8;                   // ブランドセーフティ
     ecpm *= Math.max(0.3, 1 - botRatio * 2.5);           // BOT impは広告主が値引き要求
+    ecpm *= marketEcpmFactor;
+    if ((s.acquisitions || []).includes('adAnalytics')) ecpm *= 1.12;
     if (outage) ecpm *= 0.6;
     const adRevenue = impressions / 1000 * ecpm;
     const premiumRevenue = s.users * s.premiumRate * CONFIG.PREMIUM_PRICE / 30;
     const revenue = adRevenue + premiumRevenue;
+    const creatorPayout = adRevenue * s.creatorShare / 100;
 
     // --- 費用 ---
     let upkeep = 0;
@@ -569,16 +615,20 @@ const Game = {
     let securityCost = 0;
     if (s.captcha) securityCost += CONFIG.CAPTCHA.cost;
     if (s.smsVerify) securityCost += CONFIG.SMS.cost;
-    const licenseCost = modTier.license + botTier.license;
+    const dcCost = Object.entries(s.dataCenters || {}).reduce((sum, [key, count]) => sum + (CONFIG.DATA_CENTERS[key]?.upkeep || 0) * count, 0);
+    const licenseDiscount = (s.acquisitions || []).includes('moderationAi') ? 0.8 : 1;
+    const licenseCost = (modTier.license + botTier.license) * licenseDiscount;
     const promoCost = s.promoBudget;
-    const cost = upkeep + cdnCost + staffCost + securityCost + licenseCost + promoCost + autoScaleCost + CONFIG.OFFICE_BASE_COST;
+    const cost = upkeep + dcCost + cdnCost + staffCost + securityCost + licenseCost + promoCost + autoScaleCost
+      + marketCost + acquisitionCost + creatorPayout + CONFIG.OFFICE_BASE_COST;
     const profit = revenue - cost;
 
     // --- 成長 ---
     const satFactor = (s.satisfaction - 45) / 55;        // 45未満で負成長圧
     const healthyConversation = Math.max(0.65, Math.min(1.25, (replies + shares * 3) / Math.max(humanPosts, 1)));
     const organicIn = s.users * CONFIG.VIRAL_COEF * Math.max(0, satFactor) * (1 - convPenalty)
-                    * (0.7 + s.trust / 100 * 0.6) * healthyConversation * trendLift;
+                    * (0.7 + s.trust / 100 * 0.6) * healthyConversation * trendLift
+                    * marketGrowthFactor * creatorGrowthFactor;
     const ownAppeal = s.satisfaction * 0.68 + s.trust * 0.32;
     const competitors = s.competitors || [];
     const strongestAppeal = competitors.reduce((max, competitor) => Math.max(max, competitor.appeal), 0);
@@ -594,6 +644,9 @@ const Game = {
     churnRate += toxicExposure * 0.10;
     churnRate += botRatio * 0.015;
     churnRate += s.incidents.reduce((a, i) => a + i.heat * 0.00004, 0);
+    churnRate += ({ 0:0.0012, 10:0, 20:-0.00035, 30:-0.0007 })[s.creatorShare] || 0;
+    churnRate += globalInfraPenalty * activeMarkets.length * 0.0008;
+    churnRate = Math.max(0.001, churnRate);
     const churnOut = s.users * churnRate;
     const wrongBanOut = falseBans * 40; // 誤BAN 1件が波及して周辺ユーザー離脱
 
@@ -605,11 +658,12 @@ const Game = {
       posts, toxicPosts, aiCaught, humanCaught: Math.max(0, humanCaught), toxicVisible, toxicExposure,
       aiDetect, modAiCover, falseBans, humanCap,
       botBanAi, botBanReport, botInflow, botRatio, botAiCover, signupBlock, convPenalty,
-      impressions, ecpm, adRevenue, premiumRevenue, revenue,
-      upkeep, cdnCost, staffCost, securityCost, licenseCost, promoCost, autoScaleCost,
-      officeCost: CONFIG.OFFICE_BASE_COST, cost, profit,
+      impressions, ecpm, adRevenue, premiumRevenue, revenue, creatorPayout,
+      upkeep, dcCost, cdnCost, staffCost, securityCost, licenseCost, promoCost, autoScaleCost,
+      marketCost, acquisitionCost, officeCost: CONFIG.OFFICE_BASE_COST, cost, profit,
       organicIn, promoIn, competitorInflow, competitorOutflow, ownAppeal, campaignDefense,
       churnOut, wrongBanOut, churnRate, satDelta,
+      activeMarkets, marketGrowthFactor, marketEcpmFactor, globalInfraPenalty, creatorGrowthFactor,
       gpu, cap,
     };
   },
@@ -664,6 +718,29 @@ const Game = {
       }
       return true;
     });
+
+    // 研究開発と大型建設は日数を要し、完了後から効果と維持費が発生する。
+    if (s.research.active) {
+      s.research.active.daysLeft--;
+      if (s.research.active.daysLeft <= 0) {
+        const completed = CONFIG.RESEARCH.find(item => item.id === s.research.active.id);
+        if (completed) {
+          s.research.completed.push(completed.id);
+          this.log(`研究「${completed.name}」が完了。${completed.desc}`, 'good');
+        }
+        s.research.active = null;
+      }
+    }
+    s.dcProjects = s.dcProjects.filter(project => {
+      project.daysLeft--;
+      if (project.daysLeft <= 0) {
+        s.dataCenters[project.key] = (s.dataCenters[project.key] || 0) + 1;
+        this.log(`${CONFIG.DATA_CENTERS[project.key].name}が完成し、稼働を開始しました。`, 'good');
+        return false;
+      }
+      return true;
+    });
+    this.tickOverseasEvents();
 
     // SNS内外の話題・バズ・競合市場を更新。
     this.updateTrends(r);
@@ -898,6 +975,98 @@ const Game = {
   setAdLoad(v) { this.state.adLoad = Math.max(0, Math.min(CONFIG.AD_LOAD_MAX, v)); UI.render(); },
   setAdQuality(q) { this.state.adQuality = q; UI.render(); },
   setPromo(v) { this.state.promoBudget = Math.max(0, v); UI.render(); },
+
+  startResearch(id) {
+    const s = this.state, research = CONFIG.RESEARCH.find(item => item.id === id);
+    if (!research || s.research.active || s.research.completed.includes(id)) return;
+    if ((research.requires || []).some(required => !s.research.completed.includes(required))) {
+      this.log('前提となる研究が完了していません。', 'bad'); UI.render(); return;
+    }
+    if (s.cash < research.cost) { this.log('研究開発を開始する資金が不足しています。', 'bad'); UI.render(); return; }
+    s.cash -= research.cost;
+    s.research.active = { id, daysLeft:research.days };
+    this.log(`研究「${research.name}」を開始（完了まで${research.days}日）`, 'info');
+    UI.render();
+  },
+
+  buildDataCenter(key) {
+    const s = this.state, facility = CONFIG.DATA_CENTERS[key];
+    if (!facility || !s.research.completed.includes('dcPlanning')) return;
+    if (s.cash < facility.price) { this.log('データセンター建設資金が不足しています。', 'bad'); UI.render(); return; }
+    s.cash -= facility.price;
+    s.dcProjects.push({ key, daysLeft:facility.days });
+    this.log(`${facility.name}の建設を開始（工期${facility.days}日）`, 'info');
+    UI.render();
+  },
+
+  enterMarket(key) {
+    const s = this.state, market = CONFIG.MARKETS[key];
+    if (!market || s.markets[key] || !s.research.completed.includes('globalOps')) return;
+    if (s.cash < market.entry) { this.log('海外展開の初期費用が不足しています。', 'bad'); UI.render(); return; }
+    s.cash -= market.entry;
+    s.markets[key] = { openedDay:s.day, feature:false };
+    this.log(`${market.name}市場へ進出。現地運営を開始しました。`, 'good');
+    UI.render();
+  },
+
+  launchMarketFeature(key) {
+    const s = this.state, market = CONFIG.MARKETS[key], status = s.markets[key];
+    if (!market || !status || status.feature) return;
+    if (s.cash < market.featureCost) { this.log('地域限定機能の開発資金が不足しています。', 'bad'); UI.render(); return; }
+    s.cash -= market.featureCost;
+    status.feature = true;
+    s.satisfaction = Math.min(100, s.satisfaction + 0.8);
+    this.log(`${market.name}限定機能「${market.feature}」を公開しました。`, 'good');
+    UI.render();
+  },
+
+  tickOverseasEvents() {
+    const s = this.state;
+    if (s.overseasEvent) return;
+    s.overseasEventCooldown = Math.max(0, (s.overseasEventCooldown || 0) - 1);
+    const openMarkets = Object.keys(s.markets || {});
+    if (!openMarkets.length || s.overseasEventCooldown > 0 || Math.random() > 0.05 * Math.min(openMarkets.length, 3)) return;
+    const marketId = openMarkets[Math.floor(Math.random() * openMarkets.length)];
+    const event = CONFIG.OVERSEAS_EVENTS[Math.floor(Math.random() * CONFIG.OVERSEAS_EVENTS.length)];
+    s.overseasEvent = { marketId, eventId:event.id, day:s.day };
+    this.log(`${CONFIG.MARKETS[marketId].name}イベント「${event.name}」が発生。成長戦略で対応してください。`, 'info');
+  },
+
+  resolveOverseasEvent(choiceId) {
+    const s = this.state;
+    if (!s.overseasEvent) return;
+    const event = CONFIG.OVERSEAS_EVENTS.find(item => item.id === s.overseasEvent.eventId);
+    const choice = event?.choices.find(item => item.id === choiceId);
+    if (!choice) return;
+    if (s.cash < choice.cost) { this.log('イベント施策の資金が不足しています。', 'bad'); UI.render(); return; }
+    s.cash -= choice.cost;
+    s.users = Math.max(1000, s.users + choice.users);
+    s.trust = Math.max(0, Math.min(100, s.trust + choice.trust));
+    this.log(`${CONFIG.MARKETS[s.overseasEvent.marketId].name}: 「${choice.name}」を実施しました。`, choice.trust < 0 ? 'bad' : 'good');
+    s.overseasEvent = null;
+    s.overseasEventCooldown = 10;
+    UI.render();
+  },
+
+  setCreatorShare(value) {
+    if (!this.state.research.completed.includes('creatorEconomy')) return;
+    const next = CONFIG.CREATOR_SHARE_LEVELS.includes(value) ? value : 10;
+    this.state.creatorShare = next;
+    this.log(`クリエイター収益還元率を${next}%に変更しました。`, next >= 20 ? 'good' : 'info');
+    UI.render();
+  },
+
+  acquireCompany(id) {
+    const s = this.state, company = CONFIG.ACQUISITIONS.find(item => item.id === id);
+    if (!company || s.acquisitions.includes(id) || !s.research.completed.includes('maTeam')) return;
+    if (s.cash < company.price) { this.log('買収資金が不足しています。', 'bad'); UI.render(); return; }
+    s.cash -= company.price;
+    s.acquisitions.push(id);
+    if (id === 'smallSns') s.users += 120000;
+    if (id === 'security') s.trust = Math.min(100, s.trust + 6);
+    this.log(`${company.name}の買収が完了。${company.effect}`, 'good');
+    UI.render();
+  },
 
   // ---------------- 時間制御 ----------------
   play(speed = 1) {
