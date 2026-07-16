@@ -50,6 +50,22 @@ const Game = {
       this.state.userRequests = Array.isArray(this.state.userRequests) ? this.state.userRequests : this.createUserRequests();
       this.state.competitors = Array.isArray(this.state.competitors) ? this.state.competitors : this.createCompetitors();
       this.state.campaigns = this.state.campaigns || {};
+      this.state.incidents = (this.state.incidents || []).map(inc => ({
+        ...inc,
+        minDays: Number.isFinite(inc.minDays) ? inc.minDays : CONFIG.INCIDENT_MIN_DAYS[inc.sev],
+        maxDays: Number.isFinite(inc.maxDays) ? inc.maxDays : CONFIG.INCIDENT_MAX_DAYS[inc.sev],
+        peakDay: Number.isFinite(inc.peakDay) ? inc.peakDay : 2 + inc.sev,
+        responseDrag: Number.isFinite(inc.responseDrag) ? inc.responseDrag : 0,
+        responseCooldown: Number.isFinite(inc.responseCooldown) ? inc.responseCooldown : 0,
+        phase: inc.phase || '拡大中',
+      }));
+      this.state.timeline = this.state.timeline.map(post => ({
+        ...post,
+        audienceRate: Number.isFinite(post.audienceRate) ? post.audienceRate : Math.max(0.001, post.views / Math.max(this.state.users, 1)),
+        engagementRate: Number.isFinite(post.engagementRate) ? post.engagementRate : Math.max(0.015, post.likes / Math.max(post.views, 1)),
+        virality: Number.isFinite(post.virality) ? post.virality : 0.25,
+        lastEngagementDay: Number.isFinite(post.lastEngagementDay) ? post.lastEngagementDay : post.day,
+      }));
       if (this.state.trends.length === 0) this.updateTrends(this.computeReport(), true);
       if (this.state.timeline.length === 0) this.generateUserPosts(this.computeReport(), 6);
       this.computeReport();
@@ -132,6 +148,50 @@ const Game = {
   },
 
   // ---------------- タイムライン ----------------
+  createPostMetrics(report) {
+    const roll = Math.random();
+    let audienceRate;
+    let virality;
+    if (roll < 0.025) {
+      audienceRate = 0.12 + Math.random() * 0.28;
+      virality = 1.4 + Math.random() * 1.2;
+    } else if (roll < 0.16) {
+      audienceRate = 0.018 + Math.random() * 0.065;
+      virality = 0.65 + Math.random() * 0.65;
+    } else {
+      audienceRate = 0.0012 + Math.random() * 0.014;
+      virality = 0.12 + Math.random() * 0.55;
+    }
+    const quality = 0.82 + this.state.satisfaction / 350;
+    const views = Math.max(8, Math.min(this.state.users * 1.15,
+      Math.round(report.dau * audienceRate * quality)));
+    const engagementRate = Math.max(0.008, Math.min(0.14,
+      (0.014 + Math.random() * 0.06) * (0.85 + this.state.satisfaction / 300) * (1 + virality * 0.12)));
+    return { audienceRate, virality, views, engagementRate };
+  },
+
+  tickTimelineEngagement(report) {
+    const s = this.state;
+    for (const post of s.timeline) {
+      const age = Math.max(0, s.day - post.day);
+      if (age > 5 || post.lastEngagementDay >= s.day) continue;
+      const decay = Math.exp(-age * 0.72);
+      const potential = Math.min(s.users * 1.35,
+        report.dau * post.audienceRate * (1.05 + post.virality * 0.38));
+      const remaining = Math.max(0, potential - post.views);
+      const addedViews = Math.round(Math.min(remaining,
+        report.dau * post.audienceRate * decay * (0.16 + post.virality * 0.12)));
+      if (addedViews > 0) {
+        const addedLikes = Math.round(addedViews * post.engagementRate);
+        post.views += addedViews;
+        post.likes += addedLikes;
+        post.reposts += Math.round(addedLikes * (0.10 + post.virality * 0.09));
+        post.replies += Math.round(addedLikes * (0.07 + post.virality * 0.035));
+      }
+      post.lastEngagementDay = s.day;
+    }
+  },
+
   generateUserPosts(report, count = 3) {
     const s = this.state;
     const profiles = [
@@ -173,8 +233,8 @@ const Game = {
         ? concerns
         : (s.satisfaction >= 66 && Math.random() < 0.3 ? positive : general);
       const text = pool[Math.floor(Math.random() * pool.length)];
-      const reach = Math.max(12, Math.round(20 + Math.random() * Math.sqrt(Math.max(report.dau, 1)) * 24));
-      const engagement = 0.025 + Math.random() * 0.075;
+      const metrics = this.createPostMetrics(report);
+      const likes = Math.round(metrics.views * metrics.engagementRate);
       s.timeline.unshift({
         id: ++s.timelineSeq,
         day: s.day,
@@ -185,10 +245,14 @@ const Game = {
         color: profile.color,
         verified: Math.random() < 0.12,
         text,
-        replies: Math.round(reach * engagement * 0.16),
-        reposts: Math.round(reach * engagement * 0.22),
-        likes: Math.round(reach * engagement),
-        views: reach,
+        replies: Math.round(likes * (0.06 + metrics.virality * 0.035)),
+        reposts: Math.round(likes * (0.09 + metrics.virality * 0.08)),
+        likes,
+        views: metrics.views,
+        audienceRate: metrics.audienceRate,
+        engagementRate: metrics.engagementRate,
+        virality: metrics.virality,
+        lastEngagementDay: s.day,
       });
     }
     if (s.timeline.length > 90) s.timeline.length = 90;
@@ -608,6 +672,8 @@ const Game = {
     this.tickCompetitors(r);
     this.tickUserRequests();
 
+    // 既存ポストの反応も、現在のDAUと投稿鮮度に応じて数日間伸びる。
+    this.tickTimelineEngagement(r);
     // ユーザーのタイムラインには、その日の空気を反映したポストが流れる。
     this.generateUserPosts(r, 2 + Math.floor(Math.random() * 3));
 
@@ -650,17 +716,66 @@ const Game = {
   },
 
   // ---------------- 炎上 ----------------
+  incidentSourcePressure(inc, r) {
+    const s = this.state;
+    switch (inc.id) {
+      case 'hate': return Math.min(1.6, r.toxicExposure / 0.006);
+      case 'wrongban': return Math.min(1.6, r.falseBans / 16);
+      case 'outage': return r.outage ? Math.min(1.8, 0.8 + s.outageDays * 0.18) : 0.1;
+      case 'adscam': return s.adQuality === 0 ? 1.25 : s.adQuality === 1 ? 0.45 : 0.1;
+      case 'botspam': return Math.min(1.6, r.botRatio / 0.1);
+      default: return 0.28;
+    }
+  },
+
   tickIncidents(r) {
     const s = this.state;
     s.incidents = s.incidents.filter(inc => {
       inc.age++;
-      // 注目は初動で伸びるが、通常は数日で関心が別の話題へ移る。
-      inc.heat += inc.sev * 1.8 - inc.age * 2.2 - s.staff.pr * 0.9;
+      inc.responseCooldown = Math.max(0, (inc.responseCooldown || 0) - 1);
+      const sourcePressure = this.incidentSourcePressure(inc, r);
+      const noise = (Math.random() - 0.48) * (2.2 + inc.sev);
+
+      if (inc.age <= inc.peakDay) {
+        // 現実の炎上は発生直後に報道・引用・検証が重なり、数日かけてピークへ向かう。
+        inc.phase = '拡大中';
+        inc.heat += inc.sev * 2.1 + sourcePressure * 3.2 + noise - s.staff.pr * 0.2;
+      } else {
+        const resurgenceChance = 0.025 + sourcePressure * 0.055 + inc.sev * 0.008;
+        if (Math.random() < resurgenceChance) {
+          inc.phase = '再燃';
+          inc.heat += 5 + inc.sev * 2.5 + sourcePressure * 4;
+          this.log(`🔥 炎上「${inc.name}」が新たな投稿や報道で再燃しました。`, 'bad');
+        } else {
+          inc.phase = inc.heat > 55 ? '高止まり' : '収束中';
+          const naturalDecay = 0.8 + s.staff.pr * 0.22 + (inc.responseDrag || 0)
+            + Math.max(0, 0.65 - sourcePressure) * 1.1 - inc.sev * 0.1;
+          inc.heat -= Math.max(0.25, naturalDecay) + Math.max(-1.5, noise * 0.35);
+        }
+      }
+
+      // 最短期間中は、対策に成功しても余波・検証・検索流入が残る。
+      if (inc.age < inc.minDays) {
+        const residualHeat = 8 + inc.sev * 4 + (inc.minDays - inc.age) * 0.8;
+        inc.heat = Math.max(residualHeat, inc.heat);
+      }
       inc.heat = Math.max(0, Math.min(150, inc.heat));
-      if (inc.heat <= 0 || inc.age > 15) {
-        this.log(`🕊️ 炎上「${inc.name}」は沈静化しました。`, 'good');
-        s.trust = Math.max(0, s.trust - inc.sev * 0.5);
+
+      const sourceResolved = sourcePressure < 0.7;
+      const naturallyClosed = inc.age >= inc.minDays && inc.heat <= 8 && sourceResolved;
+      const attentionExpired = inc.age >= inc.maxDays && inc.heat <= 24;
+      if (naturallyClosed || attentionExpired) {
+        this.log(`🕊️ 炎上「${inc.name}」は${inc.age}日間の余波を経て沈静化しました。`, 'good');
+        s.trust = Math.max(0, s.trust - inc.sev * (naturallyClosed ? 0.25 : 0.7));
+        s.incidentCooldown = Math.max(s.incidentCooldown || 0, CONFIG.INCIDENT_COOLDOWN_DAYS);
         return false;
+      }
+
+      // 原因が未解決のまま上限を迎えた場合は「忘れられる」のではなく低熱で継続する。
+      if (inc.age >= inc.maxDays && !sourceResolved) {
+        inc.maxDays += 5;
+        inc.heat = Math.max(18 + inc.sev * 3, inc.heat);
+        inc.phase = '問題継続';
       }
       return true;
     });
@@ -686,10 +801,13 @@ const Game = {
         const sev = Math.min(4, (sevRoll < 0.62 ? 1 : sevRoll < 0.9 ? 2 : 3) + scaleBonus);
         const inc = {
           uid: ++s.incidentSeq, id: t.id, name: t.name, desc: t.desc, icon: t.icon,
-          sev, heat: 25 + sev * 15, age: 0,
+          sev, heat: 32 + sev * 16, age: 0,
+          minDays: CONFIG.INCIDENT_MIN_DAYS[sev] + Math.floor(Math.random() * 3),
+          maxDays: CONFIG.INCIDENT_MAX_DAYS[sev] + Math.floor(Math.random() * 5),
+          peakDay: 2 + sev + Math.floor(Math.random() * 2),
+          responseDrag: 0, responseCooldown: 0, phase: '拡大中',
         };
         s.incidents.push(inc);
-        s.incidentCooldown = CONFIG.INCIDENT_COOLDOWN_DAYS;
         this.log(`🔥 炎上発生[重大度${sev}]: ${t.name}`, 'bad');
         // 小規模な批判はフィード通知のみ。重大案件だけ経営判断のため一時停止する。
         if (sev >= 3 && this.speed > 0) this.pause();
@@ -704,6 +822,12 @@ const Game = {
     const inc = s.incidents.find(i => i.uid === uid);
     if (!inc) return;
     const resp = CONFIG.RESPONSES.find(x => x.id === respId);
+    if (!resp) return;
+    if ((inc.responseCooldown || 0) > 0) {
+      this.log(`対応の検証中です。次の施策投入まで残り${inc.responseCooldown}日です。`, 'info');
+      if (typeof UI !== 'undefined') UI.render();
+      return;
+    }
     let cost = resp.cost ?? (resp.costBase + resp.costPerSev * inc.sev);
     if (s.cash < cost) { this.log('❌ 資金不足で対応できません。', 'bad'); UI.render(); return; }
     s.cash -= cost;
@@ -713,16 +837,18 @@ const Game = {
     prob = Math.max(0.05, Math.min(0.97, prob));
     const ok = Math.random() < prob;
 
+    inc.responseCooldown = CONFIG.INCIDENT_RESPONSE_COOLDOWN;
     if (ok) {
-      inc.heat -= resp.heatDown + s.staff.pr * 2;
+      // 単発施策で即消滅はせず、初動の熱を下げたうえで日々の収束速度を改善する。
+      inc.heat -= resp.heatDown * 0.38 + s.staff.pr * 0.8;
+      inc.responseDrag = Math.min(5.5, (inc.responseDrag || 0) + (resp.dragDown || 0));
+      inc.phase = '対応検証中';
       s.trust = Math.min(100, s.trust + resp.trustOk);
-      this.log(`✅ 「${resp.name}」が奏功!「${inc.name}」の勢いが弱まりました(成功率${Math.round(prob * 100)}%)。`, 'good');
-      if (inc.heat <= 0) {
-        s.incidents = s.incidents.filter(i => i.uid !== uid);
-        this.log(`🕊️ 炎上「${inc.name}」は完全に鎮火しました。`, 'good');
-      }
+      this.log(`✅ 「${resp.name}」が奏功。「${inc.name}」は弱まりましたが、余波と検証は続きます(成功率${Math.round(prob * 100)}%)。`, 'good');
     } else {
       inc.heat += resp.failHeat;
+      inc.responseDrag = Math.max(0, (inc.responseDrag || 0) - 0.4);
+      inc.phase = '再燃';
       s.trust = Math.max(0, s.trust + resp.trustNg);
       this.log(`❌ 「${resp.name}」は逆効果に…「${inc.name}」がさらに延焼(成功率${Math.round(prob * 100)}%)。`, 'bad');
     }

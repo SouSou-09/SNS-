@@ -147,7 +147,10 @@ const CONFIG = {
   BASE_CHURN: 0.005,           // 基礎解約率/日
 
   // --- 炎上インシデント ---
-  INCIDENT_COOLDOWN_DAYS: 10,  // 大きな炎上後は同種の話題が連続しにくい
+  INCIDENT_COOLDOWN_DAYS: 10,  // 炎上の沈静化後は同種の話題が連続しにくい
+  INCIDENT_MIN_DAYS: [0, 5, 8, 12, 16], // 重大度別の最短継続日数
+  INCIDENT_MAX_DAYS: [0, 14, 21, 30, 45], // 重大度別の関心が残り得る上限
+  INCIDENT_RESPONSE_COOLDOWN: 2, // 対応策を連続投入できない日数
   MAX_ACTIVE_INCIDENTS: 2,
   INCIDENT_TYPES: [
     { id:'hate',    name:'差別的投稿の拡散放置', cause:'tox', icon:'fa-fire',
@@ -166,16 +169,16 @@ const CONFIG = {
       desc:'利用規約の文言が「ユーザー軽視だ」と解釈され署名運動に発展。' },
   ],
   RESPONSES: [
-    { id:'apology', name:'公式謝罪文を公開', cost:0, base:0.42, heatDown:30, failHeat:10,
-      trustOk:2, trustNg:-3, desc:'無料。成功率は広報力と企業信頼度に依存' },
-    { id:'presser', name:'記者会見+補償対応', costBase:2000000, costPerSev:1000000, base:0.75, heatDown:60, failHeat:8,
-      trustOk:5, trustNg:-2, desc:'高額だが最も確実。重大度に応じて費用増' },
-    { id:'silence', name:'沈黙を保つ', cost:0, base:0.28, smallBonus:0.35, heatDown:18, failHeat:16,
-      trustOk:0, trustNg:-4, desc:'小規模な炎上なら自然鎮火も。失敗すると延焼' },
-    { id:'influencer', name:'インフルエンサー火消し', cost:1500000, base:0.5, heatDown:28, failHeat:22,
-      trustOk:1, trustNg:-6, desc:'成功すれば早いが、ステマ発覚で大延焼のリスク' },
-    { id:'transparency', name:'透明性レポート公開', cost:500000, base:0.55, heatDown:22, failHeat:6,
-      trustOk:4, trustNg:-1, desc:'データで反論。失敗しても傷は浅く信頼が積み上がる' },
+    { id:'apology', name:'公式謝罪文を公開', cost:0, base:0.42, heatDown:30, dragDown:1.3, failHeat:10,
+      trustOk:2, trustNg:-3, desc:'謝罪後も検証や批判は残る。初動と今後の収束を少し改善' },
+    { id:'presser', name:'記者会見+補償対応', costBase:2000000, costPerSev:1000000, base:0.75, heatDown:60, dragDown:2.8, failHeat:8,
+      trustOk:5, trustNg:-2, desc:'高額だが最も確実。再燃を抑え、収束期間も短縮' },
+    { id:'silence', name:'沈黙を保つ', cost:0, base:0.28, smallBonus:0.35, heatDown:18, dragDown:0.4, failHeat:16,
+      trustOk:0, trustNg:-4, desc:'小規模なら有効なこともあるが、説明不足で長期化しやすい' },
+    { id:'influencer', name:'インフルエンサー火消し', cost:1500000, base:0.5, heatDown:28, dragDown:0.8, failHeat:22,
+      trustOk:1, trustNg:-6, desc:'一時的に話題をそらすが、ステマ発覚で大延焼のリスク' },
+    { id:'transparency', name:'透明性レポート公開', cost:500000, base:0.55, heatDown:22, dragDown:2.0, failHeat:6,
+      trustOk:4, trustNg:-1, desc:'即効性は低めだが、検証が進むほど着実に収束' },
   ],
 
   // --- マイルストーン ---

@@ -505,7 +505,7 @@ const UI = {
         const respBtns = CONFIG.RESPONSES.map(resp => {
           const cost = resp.cost ?? (resp.costBase + resp.costPerSev * inc.sev);
           const prob = Math.max(0.05, Math.min(0.97, resp.base + s.staff.pr * 0.04 + (s.trust - 50) * 0.003 + (resp.id === 'silence' && inc.sev <= 1 ? resp.smallBonus : 0)));
-          return `<button class="resp-btn" onclick="Game.respondIncident(${inc.uid},'${resp.id}')">
+          return `<button class="resp-btn" onclick="Game.respondIncident(${inc.uid},'${resp.id}')" ${(inc.responseCooldown || 0) > 0 ? 'disabled' : ''}>
             <b>${resp.name}</b>
             <span class="r-cost">${cost ? this.yen(cost) : '無料'}</span> / 成功率約${Math.round(prob * 100)}%<br>
             <span class="desc">${resp.desc}</span>
@@ -516,8 +516,9 @@ const UI = {
             <div><b>${inc.name}</b> <span class="sev-stars">${'★'.repeat(inc.sev)}${'☆'.repeat(4 - inc.sev)}</span>
             <div class="desc">${inc.desc}</div></div>
           </div>
-          <div class="gauge-head"><span>炎上ヒート(発生${inc.age}日目)</span><span class="g-val">${Math.round(inc.heat)} / 150</span></div>
+          <div class="gauge-head"><span>炎上ヒート(発生${inc.age}日目・${this.esc(inc.phase || '拡大中')})</span><span class="g-val">${Math.round(inc.heat)} / 150</span></div>
           <div class="heat-bar"><div class="heat-fill" style="width:${Math.min(100, inc.heat / 150 * 100)}%"></div></div>
+          <p class="desc">最短でも約${inc.minDays || CONFIG.INCIDENT_MIN_DAYS[inc.sev]}日間は余波が残ります。${(inc.responseCooldown || 0) > 0 ? `対応効果を検証中（次の施策まで${inc.responseCooldown}日）` : '新しい対応策を実行できます。'}</p>
           <div class="resp-grid">${respBtns}</div>
         </div>`;
       }).join('');
@@ -556,13 +557,13 @@ const UI = {
       <div class="card"><h3><i class="fa-solid fa-bolt"></i>バズ投稿・拡散モニター</h3><div class="buzz-list">${buzzBody}</div></div>
       <div class="card"><h3><i class="fa-solid fa-square-poll-vertical"></i>ユーザー要望・アンケート</h3><p class="desc request-intro">支持率を調査してから実装すると、どの層が求めているか判断できます。</p><div class="request-grid">${requestBody}</div></div>
       <div class="card">
-        <h3><i class="fa-solid fa-bullhorn"></i>広報(PR)スタッフ: ${s.staff.pr}人 <span class="desc">(対応成功率+4%/人・自然鎮火加速・${this.yen(CONFIG.STAFF.pr.cost)}/日)</span></h3>
+        <h3><i class="fa-solid fa-bullhorn"></i>広報(PR)スタッフ: ${s.staff.pr}人 <span class="desc">(対応成功率+4%/人・日々の収束を補助・${this.yen(CONFIG.STAFF.pr.cost)}/日)</span></h3>
         <div class="staff-btns" style="justify-content:flex-start">
           <button onclick="Game.hire('pr',-1)" ${s.staff.pr <= 0 ? 'disabled' : ''}>−</button>
           <span class="staff-count">${s.staff.pr}</span>
           <button onclick="Game.hire('pr',1)" ${s.staff.pr >= CONFIG.STAFF.pr.max ? 'disabled' : ''}>+</button>
         </div>
-        <p class="desc">炎上はヒートが高いほどユーザー離脱と信頼低下が加速します。放置すると数日は延焼し続けます。企業信頼度が高いと対応が成功しやすくなります。</p>
+        <p class="desc">炎上は初動から数日かけてピークを迎え、原因が残る限り再燃します。対応成功は即時鎮火ではなく、ヒート低下とその後の収束を早めます。重大案件ほど数週間の余波が残ります。</p>
       </div>`;
   },
 
