@@ -41,6 +41,10 @@ const Game = {
       this.state = data.state;
       this.state.gameOver = Boolean(this.state.gameOver);
       this.state.won = Boolean(this.state.won);
+      // 旧バージョンで1,000万ユーザー達成により終了したセーブも継続可能にする。
+      if (this.state.won && this.state.users >= 10000000 && this.state.cash >= CONFIG.BANKRUPT_LINE) {
+        this.state.gameOver = false;
+      }
       this.state.incidentCooldown = Number.isFinite(this.state.incidentCooldown) ? this.state.incidentCooldown : 0;
       this.state.timeline = Array.isArray(this.state.timeline) ? this.state.timeline : [];
       this.state.timelineSeq = Number.isFinite(this.state.timelineSeq) ? this.state.timelineSeq : 0;
@@ -211,31 +215,11 @@ const Game = {
 
   generateUserPosts(report, count = 3) {
     const s = this.state;
-    const profiles = [
-      { name:'ミナ', handle:'@mina_days', avatar:'ミ', color:'#e879a9' },
-      { name:'たくみ', handle:'@tkm_dev', avatar:'た', color:'#60a5fa' },
-      { name:'ことり', handle:'@kotori_note', avatar:'こ', color:'#a78bfa' },
-      { name:'はる｜写真', handle:'@haru_snap', avatar:'は', color:'#f59e0b' },
-      { name:'ニュースを読む人', handle:'@daily_reader', avatar:'読', color:'#34d399' },
-      { name:'ユウ', handle:'@you_314', avatar:'ユ', color:'#fb7185' },
-      { name:'まちのカフェ', handle:'@machi_cafe', avatar:'街', color:'#c08457' },
-      { name:'Sora', handle:'@sora_loop', avatar:'S', color:'#22d3ee' },
-    ];
-    const general = [
-      'おはよう。タイムラインを眺めながら今日の予定を整理中。',
-      'この時間のタイムライン、落ち着いた話題が多くてちょうどいい。',
-      'みんなのおすすめを見ていたら、読みたいものがまた増えた。',
-      '投稿するほどではない日もあるけど、みんなの近況を見るのは好き。',
-      'さっきの投稿、コメントで別の視点を知れてよかった。',
-      '写真を一枚。今日は空の色がきれいだった。',
-      'この話題、結論を急がずいろんな人の意見を読みたい。',
-      'フォローしている人の近況がほどよく流れてくる感じ、いいね。',
-    ];
-    const positive = [
-      '最近Chirperが軽くなった気がする。画像もすぐ開けて快適。',
-      'ここ数日、会話の雰囲気が穏やかで使いやすい。',
-      'おすすめ欄から面白い人を見つけた。こういう出会いがあると嬉しい。',
-    ];
+    const profiles = CONFIG.TIMELINE_PROFILE_GROUPS.flatMap(group =>
+      group.users.map(([name, handle, avatar]) => ({ name, handle, avatar, color:group.color }))
+    );
+    const general = CONFIG.TIMELINE_POST_GROUPS.flat();
+    const positive = CONFIG.TIMELINE_POSITIVE_GROUPS.flat();
     const concerns = [];
     if (report.latency > 250) concerns.push('読み込みが少し重いかも。投稿ボタンを押してから反映まで時間がかかった。');
     if (report.errorRate > 0.05) concerns.push('さっきから何度かエラーになる。運営から状況のお知らせがあると安心できそう。');
@@ -272,7 +256,7 @@ const Game = {
         lastEngagementDay: s.day,
       });
     }
-    if (s.timeline.length > 90) s.timeline.length = 90;
+    if (s.timeline.length > 180) s.timeline.length = 180;
   },
 
   updateTrends(report, initial = false) {
@@ -766,7 +750,10 @@ const Game = {
         s.milestonesHit.push(m.users);
         s.cash += m.bonus;
         this.log(`🏆 ${m.title} ${m.msg}`, 'gold');
-        if (m.users >= 10000000) { s.won = true; s.gameOver = true; this.pause(); }
+        if (m.users >= 10000000) {
+          s.won = true;
+          this.log('1,000万ユーザーは通過点です。経営はこのまま継続できます。', 'gold');
+        }
       }
     }
 
