@@ -84,10 +84,18 @@
       <section id="tab-finance" class="tab hidden"></section>
     </main>
 
-    <!-- 右:ログ -->
+    <!-- 右:タイムライン -->
     <aside id="log-panel">
-      <h3><i class="fa-solid fa-newspaper"></i> ニュースフィード</h3>
-      <ul id="log-list"></ul>
+      <div class="feed-head">
+        <div><span class="feed-kicker">CHIRPER NOW</span><h3>タイムライン</h3></div>
+        <i class="fa-solid fa-feather-pointed"></i>
+      </div>
+      <div class="feed-tabs" role="tablist" aria-label="タイムラインの表示切替">
+        <button class="feed-tab active" data-feed="all" onclick="UI.setFeedFilter('all')">おすすめ</button>
+        <button class="feed-tab" data-feed="posts" onclick="UI.setFeedFilter('posts')">ポスト</button>
+        <button class="feed-tab" data-feed="news" onclick="UI.setFeedFilter('news')">運営情報</button>
+      </div>
+      <div id="timeline-list" aria-live="polite"></div>
     </aside>
   </div>
 </div>
