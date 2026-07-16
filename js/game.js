@@ -42,6 +42,9 @@ const Game = {
       this.state.gameOver = Boolean(this.state.gameOver);
       this.state.won = Boolean(this.state.won);
       this.state.incidentCooldown = Number.isFinite(this.state.incidentCooldown) ? this.state.incidentCooldown : 0;
+      this.state.timeline = Array.isArray(this.state.timeline) ? this.state.timeline : [];
+      this.state.timelineSeq = Number.isFinite(this.state.timelineSeq) ? this.state.timelineSeq : 0;
+      if (this.state.timeline.length === 0) this.generateUserPosts(this.computeReport(), 6);
       this.computeReport();
       return true;
     } catch (_) {
@@ -80,6 +83,8 @@ const Game = {
       incidentCooldown: 0,
       outageDays: 0,
       log: [],
+      timeline: [],
+      timelineSeq: 0,
       history: { users: [], cash: [], profit: [], satisfaction: [], load: [] },
       milestonesHit: [],
       gameOver: false,
@@ -89,12 +94,75 @@ const Game = {
       graceUsed: false,
     };
     this.log('🎉 SNS「Chirper」サービス開始!初期ユーザー5万人、資金¥5,000万からのスタートです。', 'good');
-    this.computeReport();
+    this.generateUserPosts(this.computeReport(), 7);
   },
 
   log(msg, type = 'info') {
     this.state.log.unshift({ day: this.state.day, msg, type });
     if (this.state.log.length > 120) this.state.log.pop();
+  },
+
+  // ---------------- タイムライン ----------------
+  generateUserPosts(report, count = 3) {
+    const s = this.state;
+    const profiles = [
+      { name:'ミナ', handle:'@mina_days', avatar:'ミ', color:'#e879a9' },
+      { name:'たくみ', handle:'@tkm_dev', avatar:'た', color:'#60a5fa' },
+      { name:'ことり', handle:'@kotori_note', avatar:'こ', color:'#a78bfa' },
+      { name:'はる｜写真', handle:'@haru_snap', avatar:'は', color:'#f59e0b' },
+      { name:'ニュースを読む人', handle:'@daily_reader', avatar:'読', color:'#34d399' },
+      { name:'ユウ', handle:'@you_314', avatar:'ユ', color:'#fb7185' },
+      { name:'まちのカフェ', handle:'@machi_cafe', avatar:'街', color:'#c08457' },
+      { name:'Sora', handle:'@sora_loop', avatar:'S', color:'#22d3ee' },
+    ];
+    const general = [
+      'おはよう。タイムラインを眺めながら今日の予定を整理中。',
+      'この時間のタイムライン、落ち着いた話題が多くてちょうどいい。',
+      'みんなのおすすめを見ていたら、読みたいものがまた増えた。',
+      '投稿するほどではない日もあるけど、みんなの近況を見るのは好き。',
+      'さっきの投稿、コメントで別の視点を知れてよかった。',
+      '写真を一枚。今日は空の色がきれいだった。',
+      'この話題、結論を急がずいろんな人の意見を読みたい。',
+      'フォローしている人の近況がほどよく流れてくる感じ、いいね。',
+    ];
+    const positive = [
+      '最近Chirperが軽くなった気がする。画像もすぐ開けて快適。',
+      'ここ数日、会話の雰囲気が穏やかで使いやすい。',
+      'おすすめ欄から面白い人を見つけた。こういう出会いがあると嬉しい。',
+    ];
+    const concerns = [];
+    if (report.latency > 250) concerns.push('読み込みが少し重いかも。投稿ボタンを押してから反映まで時間がかかった。');
+    if (report.errorRate > 0.05) concerns.push('さっきから何度かエラーになる。運営から状況のお知らせがあると安心できそう。');
+    if (report.botRatio > 0.08) concerns.push('同じ内容の返信が続いているけどBOTかな。通報したので確認してほしい。');
+    if (report.toxicExposure > 0.005) concerns.push('攻撃的な返信を見かけた。会話は続けたいけど、もう少し対策があると安心。');
+    if (s.adLoad > 15) concerns.push('広告が少し増えた気がする。投稿との区別がもっと分かりやすいと助かる。');
+    if (s.incidents.length) concerns.push(`「${s.incidents[0].name}」の件、断片的な情報だけで決めつけず公式の説明を待ちたい。`);
+
+    for (let i = 0; i < count; i++) {
+      const profile = profiles[Math.floor(Math.random() * profiles.length)];
+      const pool = concerns.length && Math.random() < 0.36
+        ? concerns
+        : (s.satisfaction >= 66 && Math.random() < 0.3 ? positive : general);
+      const text = pool[Math.floor(Math.random() * pool.length)];
+      const reach = Math.max(12, Math.round(20 + Math.random() * Math.sqrt(Math.max(report.dau, 1)) * 24));
+      const engagement = 0.025 + Math.random() * 0.075;
+      s.timeline.unshift({
+        id: ++s.timelineSeq,
+        day: s.day,
+        hour: 7 + Math.floor(Math.random() * 16),
+        name: profile.name,
+        handle: profile.handle,
+        avatar: profile.avatar,
+        color: profile.color,
+        verified: Math.random() < 0.12,
+        text,
+        replies: Math.round(reach * engagement * 0.16),
+        reposts: Math.round(reach * engagement * 0.22),
+        likes: Math.round(reach * engagement),
+        views: reach,
+      });
+    }
+    if (s.timeline.length > 90) s.timeline.length = 90;
   },
 
   // ---------------- キャパシティ計算 ----------------
@@ -343,6 +411,9 @@ const Game = {
       }
       return true;
     });
+
+    // ユーザーのタイムラインには、その日の空気を反映したポストが流れる。
+    this.generateUserPosts(r, 2 + Math.floor(Math.random() * 3));
 
     // 炎上の進行（大きな話題にはクールダウン期間を設け、連発を防ぐ）
     this.tickIncidents(r);

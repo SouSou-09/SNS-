@@ -5,6 +5,7 @@
 
 const UI = {
   currentTab: 'dashboard',
+  feedFilter: 'all',
   charts: {},
 
   // ---------- ユーティリティ ----------
@@ -77,7 +78,7 @@ const UI = {
     Game.saveGame();
     const r = Game.computeReport();
     this.renderKPI(s, r);
-    this.renderLog(s);
+    this.renderFeed(s);
     this.renderTimeControls();
 
     const el = document.getElementById('tab-' + this.currentTab);
@@ -133,9 +134,47 @@ const UI = {
     document.getElementById('btn-play3').classList.toggle('active', !Game.paused && Game.speed === 3);
   },
 
-  renderLog(s) {
-    document.getElementById('log-list').innerHTML = s.log.slice(0, 40).map(l =>
-      `<li class="${l.type}"><span class="log-day">Day ${l.day}</span>${this.esc(l.msg)}</li>`).join('');
+  setFeedFilter(filter) {
+    this.feedFilter = filter;
+    document.querySelectorAll('.feed-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.feed === filter));
+    if (Game.state) this.renderFeed(Game.state);
+  },
+
+  renderFeed(s) {
+    const list = document.getElementById('timeline-list');
+    if (!list) return;
+
+    const posts = (s.timeline || []).map((post, index) => ({ ...post, kind: 'post', sort: post.day * 1000 + post.hour * 10 - index / 100 }));
+    const news = s.log.map((item, index) => ({ ...item, kind: 'news', sort: item.day * 1000 + 235 - index / 100 }));
+    let entries = this.feedFilter === 'posts' ? posts : this.feedFilter === 'news' ? news : posts.concat(news);
+    entries = entries.sort((a, b) => b.sort - a.sort).slice(0, this.feedFilter === 'all' ? 42 : 50);
+
+    if (entries.length === 0) {
+      list.innerHTML = '<div class="feed-empty">まだ表示できるポストがありません。</div>';
+      return;
+    }
+
+    list.innerHTML = entries.map(item => {
+      if (item.kind === 'news') {
+        return `<article class="news-entry ${item.type}">
+          <div class="news-icon"><i class="fa-solid fa-bullhorn"></i></div>
+          <div><div class="news-meta">Chirper運営 <span>· Day ${item.day}</span></div><p>${this.esc(item.msg)}</p></div>
+        </article>`;
+      }
+      return `<article class="timeline-post">
+        <div class="post-avatar" style="--avatar-color:${item.color}">${this.esc(item.avatar)}</div>
+        <div class="post-body">
+          <div class="post-author"><strong>${this.esc(item.name)}</strong>${item.verified ? '<i class="fa-solid fa-circle-check" title="認証済み"></i>' : ''}<span>${this.esc(item.handle)} · Day ${item.day} ${String(item.hour).padStart(2, '0')}:00</span></div>
+          <p class="post-text">${this.esc(item.text)}</p>
+          <div class="post-actions" aria-label="ポストの反応">
+            <span title="返信"><i class="fa-regular fa-comment"></i>${this.num(item.replies)}</span>
+            <span title="リポスト"><i class="fa-solid fa-retweet"></i>${this.num(item.reposts)}</span>
+            <span title="いいね"><i class="fa-regular fa-heart"></i>${this.num(item.likes)}</span>
+            <span title="表示"><i class="fa-solid fa-chart-simple"></i>${this.num(item.views)}</span>
+          </div>
+        </div>
+      </article>`;
+    }).join('');
   },
 
   // ---------- ダッシュボード ----------
